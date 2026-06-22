@@ -1,0 +1,18 @@
+.*
+!.github/
+*.md
+!README.md
+!docs/manual.md
+node_modules/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Site-specific SEO files (contain domain-specific URLs)
+src/web/sitemap.xml
+src/web/robots.txt
+src/web/screenshot.png
+src/web/google*.html
+archive/

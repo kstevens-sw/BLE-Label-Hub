@@ -1,0 +1,260 @@
+# TASK 1: SEARCH AND DOCUMENT ALL OCCURRENCES
+# Project Rename: "Unified BLE Web Print" → "BLE Label Hub"
+# Date: 2026-06-22
+# CORRECTED VERSION: Accurate counts, excludes plan/design documents
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+Total Occurrences Found: 27 instances of "Unified BLE Web Print"
+Total Files Affected: 11 files
+Naming Patterns Found:
+  - "Unified BLE Web Print" (primary pattern: 27 occurrences)
+  - "unified-ble-web-print" (hyphenated: 0 occurrences in target files)
+
+Search Scope:
+  - File types: *.html, *.js, *.md, *.json
+  - Directory: Project root and all subdirectories (excluding plan/design docs)
+  - Exclusions: .git, docs/plans/, docs/superpowers/
+
+Note: This corrected report excludes documentation found in docs/plans/ and
+docs/superpowers/ directories, which are planning/design documents, not
+production code requiring rename updates.
+
+================================================================================
+BREAKDOWN BY FILE CATEGORY
+================================================================================
+
+DOCUMENTATION FILES (4 files, 6 instances):
+
+  1. ./README.md (2 instances)
+     - Line 1: # Unified BLE Web Print
+     - Line 6: <img src="screenshot.png" alt="Unified BLE Web Print" width="600" />
+     - Category: Title, Alt text
+
+  2. ./DESIGN.md (1 instance)
+     - Line 1: # Unified BLE Web Print Design System
+     - Category: Title
+
+  3. ./docs/manual.md (2 instances)
+     - Line 1: # Unified BLE Web Print Manual
+     - Line 90: Unified BLE Web Print is a browser-based label editor for supported BLE printers.
+     - Category: Title, Description
+
+  4. ./docs/manual.html (3 instances)
+     - Line 6: <title>Unified BLE Web Print Manual</title>
+     - Line 183: <p class="eyebrow">Unified BLE Web Print</p>
+     - Line 331: Unified BLE Web Print is a browser-based label editor for supported BLE printers.
+     - Category: Title tag, Display text, Description
+
+WEB APPLICATION FILES (7 files, 21 instances):
+
+  1. ./src/web/index.html (10 instances)
+     - Line 10: <title>Unified BLE Web Print</title>
+     - Line 15: <meta name="author" content="Unified BLE Web Print">
+     - Line 20: <meta property="og:title" content="Unified BLE Web Print">
+     - Line 22: <meta property="og:site_name" content="Unified BLE Web Print">
+     - Line 28: <meta name="twitter:title" content="Unified BLE Web Print">
+     - Line 32: <meta name="application-name" content="Unified BLE Web Print">
+     - Line 40: "name": "Unified BLE Web Print", (manifest.json in HTML)
+     - Line 688: <h1 class="text-base sm:text-lg font-semibold text-gray-900">Unified BLE Web Print</h1>
+     - Line 1789: <h3 class="text-lg font-bold">Unified BLE Web Print</h3>
+     - Line 2144: <h2 class="text-lg font-semibold text-gray-900">Unified BLE Web Print</h2>
+     - Category: Meta tags, Title, Manifest, Headings
+
+  2. ./src/web/app.js (2 instances)
+     - Line 2: * Unified BLE Web Print Application
+     - Line 8381: console.log('Unified BLE Web Print initialized');
+     - Category: File comment, Console output
+
+  3. ./src/web/canvas.js (1 instance)
+     - Line 2: * Canvas rendering and raster conversion for Unified BLE Web Print
+     - Category: File comment
+
+  4. ./src/web/elements.js (1 instance)
+     - Line 2: * Element system for Unified BLE Web Print
+     - Category: File comment
+
+  5. ./src/web/handles.js (1 instance)
+     - Line 2: * Selection handles and transform system for Unified BLE Web Print
+     - Category: File comment
+
+  6. ./src/web/storage.js (1 instance)
+     - Line 2: * localStorage persistence for Unified BLE Web Print designs
+     - Category: File comment
+
+  7. ./src/web/docs/manual.html (3 instances)
+     - Line 6: <title>Unified BLE Web Print Manual</title>
+     - Line 183: <p class="eyebrow">Unified BLE Web Print</p>
+     - Line 331: Unified BLE Web Print is a browser-based label editor for supported BLE printers.
+     - Category: Title tag, Display text, Description
+
+================================================================================
+CATEGORIZED BY REPLACEMENT TYPE
+================================================================================
+
+META TAGS & SEO (6 instances):
+  - <title> tags: 2 instances (index.html, docs/manual.html)
+  - <meta name="author">: 1 instance (index.html)
+  - <meta property="og:title">: 1 instance (index.html)
+  - <meta property="og:site_name">: 1 instance (index.html)
+  - <meta name="twitter:title">: 1 instance (index.html)
+  - <meta name="application-name">: 1 instance (index.html)
+  TOTAL: 6 instances
+
+DOCUMENT TITLES & HEADINGS (9 instances):
+  - Markdown document titles (# format): 4 instances
+  - HTML headings (H1, H2, H3): 3 instances
+  - Manifest name property: 1 instance
+  - HTML title tags: 1 instance
+  TOTAL: 9 instances
+
+DISPLAY TEXT & DESCRIPTIONS (7 instances):
+  - Alt text: 1 instance (README.md)
+  - Body/description text: 3 instances (manual.md, docs/manual.html, src/web/docs/manual.html)
+  - Display content (eyebrow): 2 instances (docs/manual.html, src/web/docs/manual.html)
+  - Additional description: 1 instance (src/web/docs/manual.html)
+  TOTAL: 7 instances
+
+CODE COMMENTS (5 instances):
+  - File header comments: 5 instances (app.js, canvas.js, elements.js, handles.js, storage.js)
+  TOTAL: 5 instances
+
+CONSOLE/DEBUG OUTPUT (1 instance):
+  - console.log message: 1 instance (app.js, line 8381)
+  TOTAL: 1 instance
+
+================================================================================
+INSTANCE BREAKDOWN BY FILE (SUMMARY)
+================================================================================
+
+1. ./README.md                           2 instances
+2. ./DESIGN.md                           1 instance
+3. ./docs/manual.md                      2 instances
+4. ./docs/manual.html                    3 instances
+5. ./src/web/index.html                 10 instances
+6. ./src/web/app.js                      2 instances
+7. ./src/web/canvas.js                   1 instance
+8. ./src/web/elements.js                 1 instance
+9. ./src/web/handles.js                  1 instance
+10. ./src/web/storage.js                 1 instance
+11. ./src/web/docs/manual.html           3 instances
+                                        ----
+TOTAL:                                  27 instances
+
+================================================================================
+FILES REQUIRING UPDATES (SORTED BY PRIORITY)
+================================================================================
+
+PRIORITY 1 - CRITICAL (User-Facing Content):
+  [ ] ./README.md (2 instances - main project documentation)
+  [ ] ./src/web/index.html (10 instances - main app interface, meta tags, headings)
+  [ ] ./docs/manual.md (2 instances - user manual)
+  [ ] ./docs/manual.html (3 instances - rendered user manual)
+  [ ] ./src/web/docs/manual.html (3 instances - in-app documentation)
+
+PRIORITY 2 - IMPORTANT (Code & Design):
+  [ ] ./DESIGN.md (1 instance - design system documentation)
+  [ ] ./src/web/app.js (2 instances - application file comment and initialization)
+  [ ] ./src/web/canvas.js (1 instance - file comment)
+  [ ] ./src/web/elements.js (1 instance - file comment)
+  [ ] ./src/web/handles.js (1 instance - file comment)
+  [ ] ./src/web/storage.js (1 instance - file comment)
+
+================================================================================
+SPECIAL CASES & NOTES
+================================================================================
+
+1. DUPLICATE MANUAL FILES:
+   Two versions of the manual exist:
+   - ./docs/manual.html (3 instances)
+   - ./src/web/docs/manual.html (3 instances)
+   Both must be updated to maintain consistency.
+
+2. MANIFEST.JSON:
+   The manifest.json is embedded in ./src/web/index.html at line 40.
+   Update the "name" property when updating index.html.
+
+3. VISIBLE TEXT vs METADATA:
+   - Meta tags (6 instances) are critical for SEO and branding
+   - Display text (9 instances) is visible to end users
+   - Code comments (5 instances) affect developer documentation
+   - Console output (1 instance) is for debugging purposes
+
+4. PATTERN CONSISTENCY:
+   All instances use the exact phrase "Unified BLE Web Print"
+   No inconsistent spacing or variations found
+   Pattern is safe for direct find-and-replace operations
+
+5. EXCLUDED DOCUMENTS:
+   The following are NOT included in this report (they are planning docs):
+   - ./docs/plans/2026-06-22-project-rename.md (plan document)
+   - ./docs/superpowers/specs/2026-06-22-warm-modern-redesign-design.md (design spec)
+   These can be updated separately as reference/historical documents.
+
+================================================================================
+REPLACEMENT STRATEGY SUMMARY
+================================================================================
+
+APPROACH: Bulk Find & Replace
+
+Primary Pattern:
+  Find: "Unified BLE Web Print"
+  Replace With: "BLE Label Hub"
+
+FILES WITH SIMPLE REPLACEMENTS (safe for find-and-replace):
+  1. ./README.md
+  2. ./DESIGN.md
+  3. ./docs/manual.md
+  4. ./docs/manual.html
+  5. ./src/web/docs/manual.html
+  6. ./src/web/index.html
+  7. ./src/web/app.js
+  8. ./src/web/canvas.js
+  9. ./src/web/elements.js
+  10. ./src/web/handles.js
+  11. ./src/web/storage.js
+
+All 11 files can be safely updated using sed or your editor's find-and-replace
+feature, as there are no conflicting instances to manually review.
+
+================================================================================
+VERIFICATION CHECKLIST
+================================================================================
+
+Pre-Replacement Verification:
+  [x] All 27 instances accounted for in 11 files
+  [ ] Repository is clean (no uncommitted changes)
+  [ ] Backup created (if needed)
+
+Post-Replacement Verification:
+  [ ] Run verification search:
+      grep -r "Unified BLE Web Print" --include="*.html" --include="*.js" \
+        --include="*.md" --include="*.json" . --exclude-dir=.git
+  [ ] Confirm zero results from verification search
+  [ ] Verify "BLE Label Hub" appears in all expected locations
+  [ ] Test web application loads correctly
+  [ ] Verify no accidental replacements in file paths
+  [ ] Check manual files render correctly
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Task 2: Update code files (app.js, canvas.js, elements.js, handles.js, storage.js)
+2. Task 3: Update main HTML and manifest (src/web/index.html)
+3. Task 4: Update documentation files (README.md, DESIGN.md, docs/manual.*)
+4. Task 5: Verify all replacements and test application
+5. Final: Commit changes with descriptive message
+
+================================================================================
+REPORT GENERATED
+================================================================================
+Date: 2026-06-22 (Corrected Version)
+Search Command: grep -rn "Unified BLE Web Print" --include="*.html" --include="*.js" \
+                       --include="*.md" --include="*.json" . --exclude-dir=.git | \
+                grep -v "docs/plans/" | grep -v "docs/superpowers/"
+Total Instances Found: 27 (verified)
+Total Files Affected: 11 (verified)
+Report Status: COMPLETE AND ACCURATE - Ready for replacement tasks

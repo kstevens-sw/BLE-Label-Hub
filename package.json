@@ -1,0 +1,28 @@
+{
+  "name": "jadens-web-print",
+  "version": "1.0.0",
+  "description": "A browser-based label designer for the Jadens JD-468BT thermal printer.",
+  "main": "index.js",
+  "scripts": {
+    "vendor": "node scripts/copy-vendor.js",
+    "start": "npm run vendor && python3 -m http.server 3001 --directory src/web",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "manual:screenshots": "npx playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@mmote/niimbluelib": "0.0.1-alpha.40",
+    "puppeteer": "^24.37.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}
