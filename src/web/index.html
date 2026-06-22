@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script src="./vendor/niimbluelib.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>BLE Label Hub</title>
+
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="Browser-based label designer adapted for Unified BLE printing. Create custom labels with text, barcodes, QR codes, and images. No drivers needed - connects via Bluetooth. Works with Jadens, NIIMBOT, Phomemo, and other BLE thermal printers.">
+  <meta name="keywords" content="label printer, thermal printer, label designer, barcode generator, QR code, Jadens, NIIMBOT, Phomemo, bluetooth printer, label maker, free label software, thermal label printer software">
+  <meta name="author" content="BLE Label Hub">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="BLE Label Hub">
+  <meta property="og:description" content="Browser-based label designer adapted for the Jadens JD-468BT printer.">
+  <meta property="og:site_name" content="BLE Label Hub">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BLE Label Hub">
+  <meta name="twitter:description" content="Browser-based label designer adapted for the Jadens JD-468BT printer.">
+
+  <!-- Additional SEO -->
+  <meta name="application-name" content="BLE Label Hub">
+  <meta name="theme-color" content="#f6f1ea">
+
+  <!-- Structured Data for Rich Snippets -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "BLE Label Hub",
+    "description": "Browser-based label designer adapted for the Jadens JD-468BT printer.",
+    "applicationCategory": "DesignApplication",
+    "operatingSystem": "Any (Web Browser)",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "Text labels with multiple fonts",
+      "Barcode generation (Code128, EAN-13, UPC-A, Code39)",
+      "QR code generation",
+      "Image import",
+      "Shape tools",
+      "Bluetooth connectivity",
+      "No drivers required"
+    ],
+    "screenshot": "screenshot.png"
+  }
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Lato:wght@400;700&family=Montserrat:wght@400;500;600;700&family=Oswald:wght@400;500;600&family=Playfair+Display:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Roboto+Mono:wght@400;500;700&family=Source+Code+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --surface-page: #f6f1ea;
+      --surface-workspace: #efe5d9;
+      --surface-primary: #fffdf9;
+      --surface-secondary: #f7efe6;
+      --surface-elevated: #fffdf9;
+      --text-primary: #26231f;
+      --text-secondary: #6d655e;
+      --text-muted: #938a81;
+      --border-default: #ddd4c7;
+      --border-strong: #cdbfae;
+      --accent-primary: #b65f45;
+      --accent-hover: #984b35;
+      --accent-soft: #f3dfd6;
+      --status-success: #4f6b5b;
+      --status-warning: #9d7337;
+      --status-error: #a1443e;
+      --shadow-soft: 0 8px 18px rgba(83, 65, 49, 0.06);
+      --shadow-elevated: 0 18px 38px rgba(83, 65, 49, 0.1);
+    }
+    /* Hide body until styles are ready to prevent FOUC */
+    body {
+      opacity: 0;
+      font-family: 'Manrope', system-ui, sans-serif;
+      color: var(--text-primary);
+      background: var(--surface-page);
+    }
+    body.ready { opacity: 1; transition: opacity 0.1s ease-in; }
+    button, input, select, textarea { font: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+    .canvas-bg {
+      background-image: linear-gradient(45deg, #e8ddd1 25%, transparent 25%),
+                        linear-gradient(-45deg, #e8ddd1 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #e8ddd1 75%),
+                        linear-gradient(-45deg, transparent 75%, #e8ddd1 75%);
+      background-size: 12px 12px;
+      background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+    }
+    .toolbar-btn {
+      @apply px-2 py-2 text-xs font-semibold flex items-center justify-center whitespace-nowrap;
+      min-height: 34px;
+      min-width: 34px;
+      color: var(--text-primary);
+      background: linear-gradient(180deg, #fffdf9, #efe3d4);
+      border: 1px solid #c9baa7;
+      border-radius: 7px;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+    .toolbar-btn:hover {
+      background: linear-gradient(180deg, #ffffff, #f4e6dc);
+      border-color: #b89d8e;
+    }
+    .toolbar-btn:active {
+      transform: translateY(1px);
+    }
+    .toolbar-btn:disabled {
+      @apply opacity-50 cursor-not-allowed;
+    }
+    .toolbar-btn:disabled:hover {
+      background: linear-gradient(180deg, #fffdf9, #efe3d4);
+      border-color: #c9baa7;
+    }
+    button.toolbar-btn.toolbar-btn-menu {
+      border-style: dashed;
+      border-width: 1px;
+    }
+    .toolbar-divider {
+      @apply w-px h-5 sm:h-6 mx-1 sm:mx-2 flex-shrink-0;
+      background: var(--border-default);
+    }
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem;
+      border: 1px solid rgba(182, 144, 117, 0.58);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(240, 228, 213, 0.94));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+    }
+    .app-toolbar-track {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      width: max-content;
+      min-width: 100%;
+      margin: 0 auto;
+    }
+    /* Properties panel open state */
+    #props-panel.panel-open {
+      transform: translateX(0);
+    }
+    /* Mobile backdrop for properties panel */
+    #props-backdrop {
+      @apply fixed inset-0 bg-black/50 z-40 hidden;
+    }
+    #props-backdrop.backdrop-visible {
+      @apply block md:hidden;
+    }
+    .prop-label {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: #6b7280;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .prop-input {
+      width: 100%;
+      padding: 0.375rem 0.5rem;
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.25rem;
+      box-sizing: border-box;
+    }
+    .prop-input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+      border-color: color-mix(in srgb, var(--accent-primary) 42%, white);
+    }
+    /* Mobile-specific input styling - more obvious editable appearance */
+    @media (max-width: 767px) {
+      .prop-input {
+        border-color: #d1d5db;
+        background-color: #f9fafb;
+        padding-top: 0.625rem;
+        padding-bottom: 0.625rem;
+        font-size: 1rem;
+        line-height: 1.5rem;
+        -webkit-appearance: none;
+      }
+      .prop-input:focus {
+        background-color: white;
+      }
+      select.prop-input {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 0.5rem center;
+        background-repeat: no-repeat;
+        background-size: 1.5em 1.5em;
+        padding-right: 2.5rem;
+      }
+      textarea.prop-input {
+        min-height: 60px;
+      }
+    }
+    @media (min-width: 768px) and (max-width: 900px) {
+      .app-title-group {
+        display: none;
+      }
+      .desktop-only .toolbar-btn {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+      .desktop-only .toolbar-btn span {
+        display: none !important;
+      }
+      .desktop-only .toolbar-divider {
+        margin-left: 0.25rem;
+        margin-right: 0.25rem;
+      }
+      #print-btn {
+        width: 44px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        font-size: 0;
+      }
+      #print-btn svg {
+        width: 1.125rem;
+        height: 1.125rem;
+      }
+    }
+    .prop-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .prop-group {
+      margin-bottom: 1rem;
+    }
+
+    .app-shell { background: var(--surface-page); }
+    .app-header {
+      background: linear-gradient(180deg, rgba(255, 253, 249, 0.98), rgba(244, 234, 222, 0.96));
+      border-color: rgba(185, 162, 142, 0.45);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82), 0 10px 22px rgba(83, 65, 49, 0.08);
+      backdrop-filter: blur(14px);
+      color: var(--text-primary);
+    }
+    .app-toolbar {
+      display: flex;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(247, 239, 230, 0.98), rgba(235, 221, 205, 0.97));
+      border-color: rgba(184, 160, 138, 0.5);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+      border-radius: 0;
+      margin: 0;
+      width: 100%;
+      padding: 0.75rem 0.875rem;
+      backdrop-filter: blur(14px);
+      position: relative;
+      z-index: 12;
+      color: #2f2f2f;
+    }
+    .workspace-shell {
+      background:
+        radial-gradient(circle at 50% 20%, rgba(255, 252, 247, 0.88), transparent 48%),
+        var(--surface-workspace);
+    }
+    .properties-shell {
+      background: var(--surface-primary);
+      border-color: var(--border-default);
+      box-shadow: -12px 0 30px rgba(83, 65, 49, 0.06);
+    }
+    .app-footer {
+      background: var(--surface-primary);
+      border-color: var(--border-default);
+      color: var(--text-muted);
+    }
+    .shell-control {
+      background: var(--surface-secondary);
+      border: 1px solid var(--border-default);
+      color: var(--text-primary);
+      border-radius: 10px;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+    .shell-control:hover {
+      background: var(--surface-elevated);
+      border-color: var(--border-strong);
+    }
+    .shell-control:active { transform: translateY(1px); }
+    .shell-primary {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+      box-shadow: 0 6px 14px rgba(152, 75, 53, 0.16);
+    }
+    .shell-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+    .app-header .shell-control {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 232, 221, 0.98));
+      border-color: rgba(185, 162, 142, 0.7);
+      color: var(--text-primary);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
+    }
+    .app-header .shell-control:hover {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(247, 236, 226, 0.99));
+      border-color: rgba(176, 143, 120, 0.82);
+    }
+    .app-header .shell-primary {
+      background: linear-gradient(180deg, var(--accent-primary), var(--accent-hover));
+      color: white;
+      border-color: color-mix(in srgb, var(--accent-hover) 82%, black);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 10px 18px rgba(152, 75, 53, 0.18);
+    }
+    .app-header .shell-primary:hover {
+      background: linear-gradient(180deg, #c96e53, var(--accent-hover));
+      border-color: color-mix(in srgb, var(--accent-hover) 88%, black);
+    }
+    .app-header .text-gray-900,
+    .app-header .text-gray-800,
+    .app-header .text-gray-700,
+    .app-header .text-gray-600,
+    .app-header .text-gray-500,
+    .app-header .text-gray-400 {
+      color: #3a3a3a !important;
+    }
+    .app-header .bg-gray-400,
+    .app-header .bg-gray-500,
+    .app-header .bg-gray-600,
+    .app-header .bg-gray-700,
+    .app-header .bg-gray-800,
+    .app-header .bg-gray-900 {
+      background-color: rgba(110, 110, 110, 0.88) !important;
+    }
+    .app-header .border-gray-200,
+    .app-header .border-gray-300,
+    .app-header .border-gray-400 {
+      border-color: rgba(145, 145, 145, 0.45) !important;
+    }
+    .menu-popover {
+      background: linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(243, 233, 221, 0.98));
+      border: 1px solid rgba(185, 162, 142, 0.6);
+      color: var(--text-primary);
+      box-shadow: 0 16px 34px rgba(83, 65, 49, 0.16);
+      backdrop-filter: blur(14px);
+    }
+    .menu-popover button {
+      color: inherit;
+    }
+    .menu-popover button:hover {
+      background: rgba(255, 255, 255, 0.55);
+    }
+    .app-header select,
+    .app-header .header-control {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 232, 221, 0.98)) !important;
+      color: var(--text-primary) !important;
+      border-color: rgba(185, 162, 142, 0.7) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.75) !important;
+    }
+    .app-header select option {
+      color: var(--text-primary);
+      background: #fffdf9;
+    }
+    .app-header select:focus {
+      outline-color: rgba(70, 70, 70, 0.28);
+    }
+    .icon-shift svg,
+    .toolbar-btn svg {
+      transform: translateX(2px);
+    }
+    .neutral-dialog {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--shadow-elevated);
+    }
+    .neutral-backdrop {
+      background: rgba(58, 49, 42, 0.42);
+      backdrop-filter: blur(3px);
+    }
+    .prop-label {
+      color: var(--text-secondary);
+      font-size: 0.6875rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .prop-input {
+      min-height: 36px;
+      background: var(--surface-primary);
+      color: var(--text-primary);
+      border-color: var(--border-default);
+      border-radius: 9px;
+    }
+    .prop-input:hover { border-color: var(--border-strong); }
+    .prop-input:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 18%, transparent);
+    }
+    .canvas-bg {
+      border-radius: 14px;
+      box-shadow: var(--shadow-soft);
+    }
+    .bg-white { background-color: var(--surface-primary) !important; }
+    .bg-gray-50, .bg-gray-100, .bg-blue-50, .bg-blue-100, .bg-purple-50, .bg-purple-100, .bg-amber-50, .bg-amber-100 { background-color: var(--surface-secondary) !important; }
+    .bg-gray-900, .bg-gray-800, .bg-blue-600, .bg-blue-700, .bg-purple-600, .bg-purple-700, .bg-amber-600 { background-color: var(--accent-primary) !important; color: #ffffff !important; }
+    .text-gray-900, .text-gray-800, .text-gray-700 { color: var(--text-primary) !important; }
+    .text-gray-600, .text-gray-500 { color: var(--text-secondary) !important; }
+    .text-gray-400 { color: var(--text-muted) !important; }
+    .text-blue-600, .text-blue-700, .text-purple-600, .text-purple-700, .text-amber-600 { color: var(--accent-primary) !important; }
+    .border-gray-100, .border-gray-200, .border-gray-300, .border-blue-200, .border-purple-200, .border-amber-200 { border-color: var(--border-default) !important; }
+    .hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-gray-200:hover,
+    .hover\:bg-blue-50:hover, .hover\:bg-blue-100:hover, .hover\:bg-blue-200:hover,
+    .hover\:bg-purple-50:hover, .hover\:bg-purple-100:hover, .hover\:bg-purple-200:hover,
+    .hover\:bg-amber-50:hover, .hover\:bg-amber-100:hover { background-color: var(--accent-soft) !important; }
+    .focus\:ring-blue-400:focus, .focus\:ring-blue-500:focus, .focus\:ring-gray-400:focus, .focus\:ring-purple-400:focus, .focus\:ring-purple-500:focus { --tw-ring-color: color-mix(in srgb, var(--accent-primary) 25%, transparent) !important; }
+    .bg-gradient-to-r, .bg-gradient-to-b, .bg-gradient-to-br { background-image: none !important; }
+    [class*="shadow-lg"], [class*="shadow-xl"], [class*="shadow-2xl"] { --tw-shadow-color: rgba(31, 24, 18, 0.08); }
+    #zone-toolbar { background: var(--surface-secondary) !important; border-color: var(--border-default) !important; }
+    #template-panel { background: var(--surface-primary) !important; border-color: var(--border-default) !important; box-shadow: none !important; }
+    #mobile-toolbar { background: var(--surface-primary) !important; border-color: var(--border-default) !important; }
+    #mobile-menu-panel, #printer-info-popup { background: var(--surface-primary) !important; border-color: var(--border-default) !important; }
+    #props-panel h2,
+    #template-panel h2 {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    #props-empty {
+      margin-top: 1rem;
+      padding: 2rem 1rem;
+      border: 1px dashed var(--border-default);
+      border-radius: 12px;
+      background: var(--surface-secondary);
+      color: var(--text-muted);
+    }
+    #print-settings-dialog .prop-label {
+      margin-bottom: 0.4rem;
+    }
+    #print-settings-dialog > div,
+    #printer-defs-dialog > div {
+      border-radius: 16px;
+    }
+    input[type="range"] {
+      accent-color: var(--accent-primary);
+    }
+    input[type="checkbox"] {
+      accent-color: var(--accent-primary);
+    }
+    select {
+      color: var(--text-primary);
+    }
+    #status-dot.bg-green-500,
+    #mobile-status-dot.bg-green-500 {
+      background-color: var(--status-success) !important;
+    }
+    #status-dot-standalone {
+      color: #6f6f6f;
+      transition: color 160ms ease, opacity 160ms ease;
+    }
+    #status-dot-standalone.bg-green-500 {
+      color: var(--status-success) !important;
+    }
+    #status-dot-standalone.bg-gray-400 {
+      color: #6f6f6f !important;
+    }
+    .instant-tooltip {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 120;
+      pointer-events: none;
+      transform: translate(-50%, calc(-100% - 12px));
+      padding: 0.45rem 0.6rem;
+      border-radius: 10px;
+      border: 1px solid color-mix(in srgb, var(--accent-primary) 18%, var(--border-default));
+      background: rgba(38, 35, 31, 0.96);
+      color: #fffdf9;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+      box-shadow: 0 10px 24px rgba(38, 35, 31, 0.18);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 90ms ease, visibility 90ms ease;
+      white-space: nowrap;
+    }
+    .instant-tooltip.tooltip-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    #mobile-menu-panel,
+    .mobile-props-panel {
+      background: var(--surface-primary);
+      border-color: var(--border-default);
+      box-shadow: var(--shadow-elevated);
+    }
+
+    /* Mobile UI styles */
+    @media (max-width: 767px) {
+      .desktop-only { display: none !important; }
+      .mobile-only { display: flex !important; }
+      .mobile-only.mobile-hidden { display: none !important; }
+      /* Add space for fixed header and toolbar */
+      body { padding-top: 52px; padding-bottom: 160px; }
+      /* Move zoom controls to top on mobile */
+      #zoom-controls {
+        bottom: auto !important;
+        top: 60px;
+      }
+      /* Make footer fixed above the toolbar on mobile */
+      footer {
+        position: fixed !important;
+        bottom: calc(130px + env(safe-area-inset-bottom, 0px));
+        left: 0;
+        right: 0;
+        z-index: 45;
+      }
+      /* Ensure print settings dialog is fully visible above toolbar */
+      #print-settings-dialog {
+        padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+        align-items: flex-start;
+        padding-top: 60px;
+      }
+      #print-settings-dialog > div {
+        max-height: calc(100vh - 200px - env(safe-area-inset-bottom, 0px));
+      }
+    }
+    @media (min-width: 768px) {
+      .mobile-only { display: none !important; }
+    }
+
+    /* Mobile fixed bottom toolbar */
+    .mobile-toolbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid #e5e7eb;
+      z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .mobile-toolbar-row {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 8px 4px;
+    }
+
+    .mobile-tool-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 9px;
+      color: #6b7280;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      min-width: 52px;
+    }
+
+    .mobile-tool-btn:active {
+      background: #f3f4f6;
+    }
+
+    .mobile-tool-btn svg {
+      width: 22px;
+      height: 22px;
+      margin-bottom: 2px;
+    }
+
+    .mobile-tool-btn.danger {
+      color: #ef4444;
+    }
+
+    .mobile-divider {
+      width: 1px;
+      height: 32px;
+      background: #e5e7eb;
+    }
+
+    /* Mobile properties panel */
+    .mobile-props-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+      z-index: 55;
+      max-height: 60vh;
+      transform: translateY(100%);
+      transition: transform 0.3s ease-out;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .mobile-props-panel.props-open {
+      transform: translateY(0);
+    }
+
+    .mobile-props-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      width: 100%;
+    }
+
+    .mobile-props-content {
+      padding: 16px;
+      overflow-y: auto;
+      max-height: calc(60vh - 100px);
+      width: 100%;
+    }
+
+    /* Mobile menu */
+    #mobile-menu-panel {
+      transition: transform 0.3s ease-out;
+    }
+    #mobile-menu-panel.menu-open {
+      transform: translateX(0) !important;
+    }
+  </style>
+</head>
+<body class="app-shell min-h-[100dvh] flex flex-col overflow-hidden">
+
+  <!-- Mobile Top Bar -->
+  <header id="mobile-header" class="app-header mobile-only fixed top-0 left-0 right-0 border-b px-3 py-2 z-40">
+    <div class="flex items-center w-full">
+      <!-- Hamburger Menu Button -->
+      <button id="mobile-menu-btn" class="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 flex-shrink-0">
+        <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+
+      <!-- Label Name & Print Button -->
+      <div class="flex-1 flex items-center gap-2 min-w-0 mx-2">
+        <span id="mobile-status-dot" class="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0"></span>
+        <span id="mobile-label-name" class="text-sm font-medium text-gray-900 truncate">Untitled Label</span>
+        <button id="mobile-dither-preview-btn" class="shell-control p-2 flex-shrink-0" title="Toggle Print Preview">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </button>
+        <button id="mobile-print-btn" class="shell-control shell-primary p-2 flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Desktop Top Bar -->
+  <header class="app-header desktop-only border-b px-3 sm:px-5 py-2.5 flex-shrink-0">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        <div class="app-title-group flex items-center gap-1 sm:gap-2">
+          <h1 class="text-base sm:text-lg font-semibold text-gray-900">BLE Label Hub</h1>
+          <button id="info-btn" class="text-gray-400 hover:text-gray-600 transition-colors" title="About this project">
+            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </button>
+        </div>
+
+        <!-- Label Size -->
+        <div class="flex items-center gap-1 sm:gap-2">
+          <select id="label-size" class="shell-control text-xs sm:text-sm px-2 py-1.5">
+            <option value="12x40">12x40mm</option>
+            <option value="15x30">15x30mm</option>
+            <option value="20x30">20x30mm</option>
+            <option value="25x50">25x50mm</option>
+            <option value="30x20">30x20mm</option>
+            <option value="30x40">30x40mm</option>
+            <option value="40x30" selected>40x30mm</option>
+            <option value="40x60">40x60mm</option>
+            <option value="50x25">50x25mm</option>
+            <option value="50x30">50x30mm</option>
+            <option value="50x80">50x80mm</option>
+            <option value="60x40">60x40mm</option>
+            <option disabled>── Round Labels ──</option>
+            <option value="20mm Round">20mm Round</option>
+            <option value="30mm Round">30mm Round</option>
+            <option value="40mm Round">40mm Round</option>
+            <option value="50mm Round">50mm Round</option>
+            <option value="custom">Custom...</option>
+            <option value="multi-label">Multi-Label Roll...</option>
+          </select>
+          <!-- P12/A30 length adjust buttons (hidden by default, shown for tape printers) -->
+          <div id="label-length-adjust" class="hidden flex items-center gap-1 ml-1">
+            <button id="length-minus" class="w-6 h-6 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-sm font-bold" title="Decrease length by 5mm">−</button>
+            <button id="length-plus" class="w-6 h-6 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-sm font-bold" title="Increase length by 5mm">+</button>
+          </div>
+          <!-- Tape width selector (hidden by default, shown for tape printers like P12/A30) -->
+          <div id="tape-width-selector" class="hidden flex items-center gap-1 ml-2">
+            <span class="text-xs text-gray-500">Tape:</span>
+            <select id="tape-width" class="text-xs px-1.5 py-1 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-gray-400">
+              <option value="12">12mm</option>
+              <option value="14">14mm</option>
+              <option value="15">15mm</option>
+            </select>
+          </div>
+          <!-- Custom size inputs (hidden by default) -->
+          <div id="custom-size" class="hidden flex items-center gap-1">
+            <input type="number" id="custom-width" class="w-12 sm:w-14 px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg" placeholder="W" min="10" max="100">
+            <span id="custom-size-x" class="text-gray-400 text-xs">x</span>
+            <input type="number" id="custom-height" class="w-12 sm:w-14 px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg" placeholder="H" min="10" max="200">
+            <span class="text-xs text-gray-400">mm</span>
+            <label class="flex items-center gap-1 ml-1 cursor-pointer">
+              <input type="checkbox" id="custom-round" class="w-3.5 h-3.5 rounded border-gray-300 text-gray-700 focus:ring-gray-400">
+              <span class="text-xs text-gray-500">Round</span>
+            </label>
+            <label id="custom-continuous-wrap" class="hidden flex items-center gap-1 ml-1 cursor-pointer">
+              <input type="checkbox" id="custom-continuous" class="w-3.5 h-3.5 rounded border-gray-300 text-gray-700 focus:ring-gray-400">
+              <span class="text-xs text-gray-500">Continuous</span>
+            </label>
+          </div>
+
+          <div class="flex items-center gap-0.5 sm:gap-1 ml-2">
+            <button id="save-btn" class="shell-control icon-shift p-2" title="Save Design">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+            </button>
+            <button id="load-btn" class="shell-control icon-shift p-2" title="Load Design">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            </button>
+            <div class="relative">
+              <button id="export-btn" class="shell-control icon-shift p-2" title="Export">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              </button>
+              <div id="export-dropdown" class="hidden absolute left-0 top-full mt-1 menu-popover rounded-lg shadow-lg z-[60] py-1 min-w-[140px]">
+                <button id="export-json-btn" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/60">Export as JSON</button>
+                <button id="export-pdf-btn" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/60">Export as PDF</button>
+                <button id="export-png-btn" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/60">Export as PNG</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 sm:gap-3">
+        <!-- Connection -->
+        <div class="flex items-center gap-1 sm:gap-2 text-sm">
+          <select id="conn-type" class="hidden sm:block px-2 py-1.5 border border-gray-300 rounded-lg bg-white focus:outline-none text-xs sm:text-sm">
+            <option value="ble">Bluetooth</option>
+            <option value="usb">USB</option>
+          </select>
+          <button id="connect-btn" class="shell-control icon-shift p-2" title="Connect Printer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15a7 7 0 1114 0"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 15h8"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v7"/>
+            </svg>
+          </button>
+          <svg id="status-dot-standalone" class="w-4 h-4 bg-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7l10 10-5 4V3l5 4L7 17"/>
+          </svg>
+        </div>
+
+        <!-- Printer Info & Print Controls -->
+        <div class="flex items-center gap-0.5 sm:gap-1">
+          <!-- Printer Info Button (shows when connected, beside print button) -->
+          <button id="printer-info-btn" class="hidden px-2 py-1.5 sm:py-2 border border-gray-200 rounded-l-lg bg-gray-50 hover:bg-gray-100 text-xs transition-colors flex items-center gap-1.5" title="Printer Info">
+            <div id="status-dot" class="w-2 h-2 rounded-full bg-gray-400"></div>
+            <span id="printer-info-summary" class="hidden sm:inline text-gray-600">--</span>
+            <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <button id="dither-preview-btn" class="shell-control icon-shift p-2 rounded-l-lg" title="Toggle Print Preview (shows exact print output)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          </button>
+          <button id="workspace-rotate-btn" class="shell-control icon-shift p-2 rounded-none" title="Rotate Working Design Space">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 20v-6h-6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 9a8 8 0 00-13.66-5.66L4 4"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 15a8 8 0 0013.66 5.66L20 20"/></svg>
+          </button>
+          <button id="print-settings-btn" class="shell-control icon-shift p-2 rounded-none" title="Print Settings">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </button>
+          <button id="print-btn" class="shell-control shell-primary px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold rounded-r-lg flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 14H5a2 2 0 00-2 2v1h4m12-3h1a2 2 0 012 2v1h-4m-12 0v4h12v-4m-12 0h12"/></svg>
+            <span>Print</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toolbar (Desktop only) -->
+  <div class="app-toolbar desktop-only border-b px-3 sm:px-5 py-2.5 flex-shrink-0 overflow-x-auto">
+    <div class="app-toolbar-track">
+      <div class="toolbar-group">
+        <button id="add-text" class="toolbar-btn" title="Add Text">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"/></svg>
+        </button>
+        <button id="add-image" class="toolbar-btn" title="Add Image">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </button>
+        <button id="add-barcode" class="toolbar-btn" title="Add Barcode">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h2M4 8h2m10 0h2m2-4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
+        </button>
+        <button id="add-qr" class="toolbar-btn" title="Add QR Code">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h2M4 8h2m10 0h2m2-4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
+        </button>
+        <div class="relative flex items-center">
+          <button id="add-shape-btn" class="toolbar-btn toolbar-btn-menu" title="Add Shape">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/></svg>
+          </button>
+          <div id="shape-dropdown" class="hidden absolute left-0 top-full mt-1 menu-popover rounded-lg shadow-lg z-[60] py-1 min-w-[120px]">
+            <button data-shape="rectangle" class="shape-option w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-white/60 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1" stroke-width="2"/></svg>
+              Rectangle
+            </button>
+            <button data-shape="ellipse" class="shape-option w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-white/60 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="6" stroke-width="2"/></svg>
+              Ellipse
+            </button>
+            <button data-shape="triangle" class="shape-option w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-white/60 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 5l8 14H4z"/></svg>
+              Triangle
+            </button>
+            <button data-shape="line" class="shape-option w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-white/60 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/></svg>
+              Line
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="duplicate-btn" class="toolbar-btn" disabled title="Duplicate">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        </button>
+        <button id="delete-btn" class="toolbar-btn" disabled title="Delete">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+        <button id="bring-front" class="toolbar-btn" disabled title="Raise">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="4" y="8" width="10" height="10" rx="1" stroke-width="2"/>
+            <rect x="10" y="4" width="10" height="10" rx="1" stroke-width="2" fill="white"/>
+          </svg>
+        </button>
+        <button id="send-back" class="toolbar-btn" disabled title="Lower">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="10" y="10" width="10" height="10" rx="1" stroke-width="2"/>
+            <rect x="4" y="4" width="10" height="10" rx="1" stroke-width="2" fill="white"/>
+          </svg>
+        </button>
+        <button id="group-btn" class="toolbar-btn" disabled title="Group (Ctrl+G)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+        </button>
+        <button id="ungroup-btn" class="toolbar-btn" disabled title="Ungroup (Ctrl+Shift+G)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zm0 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+        </button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="undo-btn" class="toolbar-btn" disabled title="Undo (Ctrl+Z)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+        </button>
+        <button id="redo-btn" class="toolbar-btn" disabled title="Redo (Ctrl+Shift+Z)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="toolbar-group">
+        <div class="relative flex items-center">
+          <button id="elements-btn" class="toolbar-btn toolbar-btn-menu" title="Elements List">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+          </button>
+          <div id="elements-dropdown" class="hidden absolute left-0 top-full mt-1 menu-popover rounded-lg shadow-lg z-[60] py-1 min-w-[180px] max-h-[300px] overflow-y-auto">
+            <div id="elements-list" class="text-sm">
+              <div class="px-3 py-2 text-gray-500 text-center">No elements</div>
+            </div>
+          </div>
+        </div>
+
+        <button id="template-toolbar-btn" class="hidden toolbar-btn bg-gray-100 text-gray-800 hover:bg-gray-200 border-gray-200" title="Manage Template Data">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Label Zone Toolbar (hidden by default, desktop only) -->
+  <div id="zone-toolbar" class="hidden desktop-only border-b px-2 sm:px-4 py-2 flex-shrink-0">
+    <div class="flex items-center gap-2 sm:gap-4 flex-wrap">
+      <!-- Zone Info -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide">Multi-Label</span>
+        <span id="zone-config-summary" class="text-xs text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">4 × 10×20mm</span>
+      </div>
+
+      <div class="w-px h-5 bg-gray-200"></div>
+
+      <!-- Zone Selector -->
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-gray-600 font-medium mr-1">Zone:</span>
+        <div id="zone-buttons" class="flex gap-1">
+          <!-- Zone buttons will be dynamically added here -->
+        </div>
+      </div>
+
+      <div class="w-px h-5 bg-gray-200"></div>
+
+      <!-- Clone Controls -->
+      <div class="flex items-center gap-2">
+        <button id="clone-to-all-btn" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors">
+          Clone to All
+        </button>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="zone-clone-mode" class="w-3.5 h-3.5 rounded border-gray-300 text-gray-700 focus:ring-gray-400" checked>
+          <span class="text-xs text-gray-600">Auto-clone</span>
+        </label>
+      </div>
+
+      <div class="flex-1"></div>
+
+      <!-- Exit Multi-Label -->
+      <button id="exit-multi-label-btn" class="px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors flex items-center gap-1">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        Exit Multi-Label
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="workspace-shell flex-1 flex overflow-hidden relative">
+    <!-- Canvas Area -->
+    <div class="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-auto relative">
+      <div id="canvas-container" class="canvas-bg transition-transform origin-center" style="touch-action: none;">
+        <canvas id="preview-canvas" class="cursor-crosshair rounded-lg" style="touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;"></canvas>
+      </div>
+
+      <!-- Inline Text Editor Overlay -->
+      <textarea id="inline-text-editor" class="hidden fixed resize-none border-2 border-gray-400 rounded outline-none p-1" style="background: rgba(255,255,255,0.98); overflow: hidden; z-index: 100; box-sizing: border-box;"></textarea>
+
+      <!-- Zoom Controls - Centered bottom (moves to top on mobile) -->
+      <div id="zoom-controls" class="neutral-dialog absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-3 rounded-xl px-2 sm:px-4 py-2 sm:py-3 z-40">
+        <button id="zoom-out" class="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors" title="Zoom Out">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"/></svg>
+        </button>
+        <span id="zoom-level" class="text-sm sm:text-base text-gray-700 w-12 sm:w-14 text-center font-semibold">100%</span>
+        <button id="zoom-in" class="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors" title="Zoom In">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/></svg>
+        </button>
+        <div class="w-px h-5 sm:h-6 bg-gray-200"></div>
+        <button id="zoom-reset" class="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors font-medium" title="Reset Zoom">
+          Reset
+        </button>
+      </div>
+
+      <!-- Mobile Properties Toggle Button (hidden - replaced by bottom sheet) -->
+      <button id="props-toggle" class="hidden fixed bottom-20 right-4 z-50 p-3 bg-gray-900 text-white rounded-full shadow-lg hover:bg-gray-800 transition-colors" title="Properties">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+      </button>
+    </div>
+
+    <!-- Template Panel (shown when template button clicked) -->
+    <aside id="template-panel" class="hidden fixed md:relative inset-y-0 right-0 w-72 sm:w-64 border-l flex-shrink-0 flex flex-col z-50 shadow-xl md:shadow-none">
+      <!-- Header -->
+      <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+          <span class="text-sm font-semibold text-gray-900">Template</span>
+        </div>
+        <button id="template-panel-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <!-- Fields Section -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide">Fields Detected</span>
+            <span id="template-field-count" class="text-xs text-gray-600 font-medium bg-gray-100 px-2 py-0.5 rounded-full">0</span>
+          </div>
+          <div id="template-field-tags" class="flex flex-wrap gap-1.5 text-xs">
+            <span class="text-gray-400 italic">None</span>
+          </div>
+        </div>
+
+        <!-- Data Section -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data Records</span>
+            <span id="template-data-count" class="text-xs text-gray-600">0</span>
+          </div>
+          <button id="template-manage-data" class="w-full px-3 py-2 bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 rounded-lg text-sm font-medium">
+            Manage Data
+          </button>
+        </div>
+      </div>
+
+      <!-- Actions Footer -->
+      <div class="p-4 border-t border-gray-200 flex flex-col gap-2">
+        <button id="template-quick-preview" class="w-full px-3 py-2 bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          Preview Labels
+        </button>
+        <button id="template-quick-print" class="w-full px-3 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Print All (<span id="template-print-count">0</span>)
+        </button>
+      </div>
+    </aside>
+
+    <!-- Properties Panel Backdrop (mobile) -->
+    <div id="props-backdrop"></div>
+
+    <!-- Properties Panel -->
+    <aside id="props-panel" class="properties-shell fixed md:relative inset-y-0 right-0 w-72 sm:w-64 border-l p-5 overflow-y-auto flex-shrink-0 z-50 transform translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
+      <!-- Mobile Close Button -->
+      <button id="props-close" class="md:hidden absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+      <h2 class="text-sm font-semibold text-gray-900 mb-4">Properties</h2>
+
+      <!-- No Selection State -->
+      <div id="props-empty" class="text-sm text-gray-400 text-center py-8">
+        Click an element to select it,<br>or add a new element.
+      </div>
+
+      <!-- Element Properties -->
+      <div id="props-content" class="hidden">
+        <!-- Transform: Position, Size, Rotation, Layer - Compact layout -->
+        <div class="space-y-2 mb-3">
+          <!-- Position & Size: X, Y, W, H in a single row -->
+          <div class="grid grid-cols-4 gap-1.5">
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">X</label>
+              <input type="number" id="prop-x" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Y</label>
+              <input type="number" id="prop-y" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">W</label>
+              <input type="number" id="prop-width" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400" min="10">
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">H</label>
+              <input type="number" id="prop-height" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400" min="10">
+            </div>
+          </div>
+          <!-- Rotation & Layer on same row -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Rotation</label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="prop-rotation" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400" min="0" max="360" step="15">
+                <span class="text-[10px] text-gray-400">°</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Layer</label>
+              <div class="text-xs text-gray-600 py-1 px-1.5">
+                <span id="prop-layer" class="font-medium">1</span><span class="text-gray-400"> / <span id="prop-layer-total">1</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-3 border-gray-200">
+
+        <!-- Text Properties -->
+        <div id="props-text" class="hidden space-y-2">
+          <!-- Text Content -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Text</label>
+              <div class="flex items-center gap-2">
+                <!-- Insert Expression Button -->
+                <div class="relative">
+                  <button id="insert-expr-text" class="text-[10px] text-gray-700 hover:text-gray-900 font-medium flex items-center gap-0.5" title="Insert date/time expression">
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    [[Date/Time]]
+                  </button>
+                  <div id="expr-dropdown-text" class="hidden absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px] py-1">
+                    <button data-expr="[[date]]" class="expr-option w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100">[[date]] - Date</button>
+                    <button data-expr="[[time]]" class="expr-option w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100">[[time]] - Time</button>
+                    <button data-expr="[[dt]]" class="expr-option w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100">[[dt]] - Date & Time</button>
+                    <hr class="my-1 border-gray-100">
+                    <button data-expr="[[dt|MM/DD/YY]]" class="expr-option w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100">[[dt|MM/DD/YY]]</button>
+                    <button data-expr="[[dt|hh:mm A]]" class="expr-option w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100">[[dt|hh:mm A]] - 12hr</button>
+                    <button data-expr="[[dt|HH:mm]]" class="expr-option w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100">[[dt|HH:mm]] - 24hr</button>
+                  </div>
+                </div>
+                <!-- Insert Field Button -->
+                <div class="relative">
+                  <button id="insert-field-text" class="text-[10px] text-gray-700 hover:text-gray-900 font-medium flex items-center gap-0.5" title="Insert template field">
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    {{Field}}
+                  </button>
+                  <div id="field-dropdown-text" class="hidden absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
+                    <div class="p-2 border-b border-gray-100">
+                      <input type="text" id="new-field-text" class="w-full px-2 py-1 text-xs border border-gray-200 rounded" placeholder="New field name...">
+                    </div>
+                    <div id="field-list-text" class="max-h-32 overflow-y-auto"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <textarea id="prop-text-content" class="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 h-16 resize-none" placeholder="Enter text..."></textarea>
+          </div>
+
+          <!-- Font & Size on same row -->
+          <div class="grid grid-cols-3 gap-1.5">
+            <div class="col-span-2">
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Font</label>
+              <select id="prop-font-family" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+                <optgroup label="Sans-Serif">
+                  <option value="Inter, sans-serif">Inter</option>
+                  <option value="Roboto, sans-serif">Roboto</option>
+                  <option value="Open Sans, sans-serif">Open Sans</option>
+                  <option value="Lato, sans-serif">Lato</option>
+                  <option value="Montserrat, sans-serif">Montserrat</option>
+                  <option value="Oswald, sans-serif">Oswald</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Helvetica, sans-serif">Helvetica</option>
+                </optgroup>
+                <optgroup label="Serif">
+                  <option value="Playfair Display, serif">Playfair Display</option>
+                  <option value="Merriweather, serif">Merriweather</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Times New Roman, serif">Times New Roman</option>
+                </optgroup>
+                <optgroup label="Monospace">
+                  <option value="Roboto Mono, monospace">Roboto Mono</option>
+                  <option value="Source Code Pro, monospace">Source Code Pro</option>
+                  <option value="Courier New, monospace">Courier New</option>
+                </optgroup>
+                <optgroup label="Display">
+                  <option value="Impact, sans-serif">Impact</option>
+                  <option value="Comic Sans MS, cursive">Comic Sans</option>
+                </optgroup>
+              </select>
+              <button id="add-system-fonts-btn" class="hidden w-full mt-1 px-1.5 py-0.5 text-[10px] text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
+                + Add System Fonts
+              </button>
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Size</label>
+              <input type="number" id="prop-font-size" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 text-center" min="6" max="200" value="24">
+            </div>
+          </div>
+
+          <!-- Style, Color & Background -->
+          <div class="grid grid-cols-3 gap-1.5">
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Style</label>
+              <div class="flex border border-gray-200 rounded overflow-hidden">
+                <button id="style-bold" class="style-btn flex-1 py-1 hover:bg-gray-100 transition-colors font-bold text-xs" title="Bold">B</button>
+                <button id="style-italic" class="style-btn flex-1 py-1 hover:bg-gray-100 transition-colors italic text-xs border-l border-gray-200" title="Italic">I</button>
+                <button id="style-underline" class="style-btn flex-1 py-1 hover:bg-gray-100 transition-colors underline text-xs border-l border-gray-200" title="Underline">U</button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Color</label>
+              <div class="flex border border-gray-200 rounded overflow-hidden">
+                <button data-color="black" class="color-btn flex-1 py-1 hover:bg-gray-50" title="Black text">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border border-gray-300 bg-black"></span>
+                </button>
+                <button data-color="white" class="color-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="White text">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border border-gray-300 bg-white"></span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">BG</label>
+              <div class="flex border border-gray-200 rounded overflow-hidden">
+                <button data-bg="transparent" class="bg-btn flex-1 py-1 hover:bg-gray-50" title="Transparent">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border border-gray-300" style="background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%); background-size: 4px 4px; background-position: 0 0, 0 2px, 2px -2px, -2px 0px;"></span>
+                </button>
+                <button data-bg="white" class="bg-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="White">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border border-gray-300 bg-white"></span>
+                </button>
+                <button data-bg="black" class="bg-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="Black">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border border-gray-300 bg-black"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- H-Align & V-Align on same row -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">H-Align</label>
+              <div class="flex border border-gray-200 rounded overflow-hidden">
+                <button data-align="left" class="align-btn flex-1 py-1 hover:bg-gray-50" title="Left">
+                  <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h14"/></svg>
+                </button>
+                <button data-align="center" class="align-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="Center">
+                  <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M5 18h14"/></svg>
+                </button>
+                <button data-align="right" class="align-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="Right">
+                  <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M6 18h14"/></svg>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">V-Align</label>
+              <div class="flex border border-gray-200 rounded overflow-hidden">
+                <button data-valign="top" class="valign-btn flex-1 py-1 hover:bg-gray-50" title="Top">
+                  <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16M12 8v12"/></svg>
+                </button>
+                <button data-valign="middle" class="valign-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="Middle">
+                  <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12h16"/></svg>
+                </button>
+                <button data-valign="bottom" class="valign-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="Bottom">
+                  <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12M4 20h16"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Text Options - compact row -->
+          <div class="flex flex-wrap gap-x-3 gap-y-1 pt-1">
+            <label class="flex items-center gap-1 cursor-pointer text-[11px] text-gray-600">
+              <input type="checkbox" id="prop-no-wrap" class="w-3 h-3 rounded border-gray-300">
+              No wrap
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer text-[11px] text-gray-600">
+              <input type="checkbox" id="prop-clip-overflow" class="w-3 h-3 rounded border-gray-300">
+              Clip
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer text-[11px] text-gray-600">
+              <input type="checkbox" id="prop-auto-scale" class="w-3 h-3 rounded border-gray-300">
+              Auto-fit
+            </label>
+          </div>
+        </div>
+
+        <!-- Image Properties -->
+        <div id="props-image" class="hidden space-y-2">
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Scale</label>
+            <div class="flex items-center gap-1.5">
+              <input type="range" id="prop-image-scale" min="10" max="200" value="100" class="flex-1">
+              <input type="number" id="prop-image-scale-input" min="10" max="200" value="100" class="w-12 px-1.5 py-1 text-xs border border-gray-200 rounded text-center">
+              <span class="text-[10px] text-gray-400">%</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-600">
+              <input type="checkbox" id="prop-image-lock-ratio" checked class="w-3 h-3 rounded border-gray-300">
+              Lock aspect ratio
+            </label>
+            <div class="flex gap-1">
+              <button id="prop-image-reset" class="px-2 py-1 text-[10px] border border-gray-200 rounded hover:bg-gray-50">Reset</button>
+              <button id="prop-replace-image" class="px-2 py-1 text-[10px] border border-gray-200 rounded hover:bg-gray-50">Replace</button>
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Dithering</label>
+            <select id="prop-image-dither" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+              <option value="none">None (Threshold)</option>
+              <option value="ordered">Ordered (Bayer)</option>
+              <option value="atkinson">Atkinson</option>
+              <option value="floyd-steinberg" selected>Floyd-Steinberg</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Brightness</label>
+            <div class="flex items-center gap-1.5">
+              <input type="range" id="prop-image-brightness" min="-100" max="100" value="0" class="flex-1">
+              <input type="number" id="prop-image-brightness-input" min="-100" max="100" value="0" class="w-12 px-1.5 py-1 text-xs border border-gray-200 rounded text-center">
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Contrast</label>
+            <div class="flex items-center gap-1.5">
+              <input type="range" id="prop-image-contrast" min="-100" max="100" value="0" class="flex-1">
+              <input type="number" id="prop-image-contrast-input" min="-100" max="100" value="0" class="w-12 px-1.5 py-1 text-xs border border-gray-200 rounded text-center">
+            </div>
+          </div>
+          <input type="file" id="prop-image-input" accept="image/*,.pdf" class="hidden">
+        </div>
+
+        <!-- Barcode Properties -->
+        <div id="props-barcode" class="hidden space-y-2">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Data</label>
+              <div class="relative">
+                <button id="insert-field-barcode" class="text-[10px] text-gray-600 hover:text-gray-800 font-medium flex items-center gap-0.5" title="Insert template field">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  {{Field}}
+                </button>
+                <div id="field-dropdown-barcode" class="hidden absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
+                  <div class="p-2 border-b border-gray-100">
+                    <input type="text" id="new-field-barcode" class="w-full px-2 py-1 text-xs border border-gray-200 rounded" placeholder="New field name...">
+                  </div>
+                  <div id="field-list-barcode" class="max-h-32 overflow-y-auto"></div>
+                </div>
+              </div>
+            </div>
+            <input type="text" id="prop-barcode-data" class="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400" placeholder="Enter barcode data">
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Format</label>
+            <select id="prop-barcode-format" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+              <option value="CODE128">CODE128</option>
+              <option value="EAN13">EAN-13</option>
+              <option value="CODE39">CODE39</option>
+            </select>
+          </div>
+          <div class="flex items-center">
+            <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-600">
+              <input type="checkbox" id="prop-barcode-showtext" checked class="w-3 h-3 rounded border-gray-300">
+              Show text below barcode
+            </label>
+          </div>
+          <div id="barcode-text-options" class="pt-1 border-t border-gray-100 mt-2">
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-1.5">
+                <label class="text-[10px] text-gray-400 uppercase tracking-wide">Text Size</label>
+                <input type="number" id="prop-barcode-fontsize" value="12" class="w-14 px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+              </div>
+              <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-600">
+                <input type="checkbox" id="prop-barcode-bold" class="w-3 h-3 rounded border-gray-300">
+                Bold
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- QR Properties -->
+        <div id="props-qr" class="hidden space-y-2">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Data</label>
+              <div class="relative">
+                <button id="insert-field-qr" class="text-[10px] text-gray-600 hover:text-gray-800 font-medium flex items-center gap-0.5" title="Insert template field">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  {{Field}}
+                </button>
+                <div id="field-dropdown-qr" class="hidden absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
+                  <div class="p-2 border-b border-gray-100">
+                    <input type="text" id="new-field-qr" class="w-full px-2 py-1 text-xs border border-gray-200 rounded" placeholder="New field name...">
+                  </div>
+                  <div id="field-list-qr" class="max-h-32 overflow-y-auto"></div>
+                </div>
+              </div>
+            </div>
+            <input type="text" id="prop-qr-data" class="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400" placeholder="Enter URL or text">
+          </div>
+        </div>
+
+        <!-- Shape Properties -->
+        <div id="props-shape" class="hidden space-y-2">
+          <!-- Shape Type -->
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Shape</label>
+            <select id="prop-shape-type" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400">
+              <option value="rectangle">Rectangle</option>
+              <option value="ellipse">Ellipse</option>
+              <option value="triangle">Triangle</option>
+              <option value="line">Line</option>
+            </select>
+          </div>
+          <!-- Fill -->
+          <div>
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Fill</label>
+            <select id="shape-fill" class="prop-input">
+              <option value="white">White (0%)</option>
+              <option value="dither-6">6% Gray</option>
+              <option value="dither-12">12% Gray</option>
+              <option value="dither-25">25% Gray</option>
+              <option value="dither-37">37% Gray</option>
+              <option value="dither-50">50% Gray</option>
+              <option value="dither-62">62% Gray</option>
+              <option value="dither-75">75% Gray</option>
+              <option value="dither-87">87% Gray</option>
+              <option value="dither-94">94% Gray</option>
+              <option value="black">Black (100%)</option>
+            </select>
+          </div>
+          <!-- Stroke & Width -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Stroke</label>
+              <div class="flex border border-gray-200 rounded overflow-hidden">
+                <button data-stroke="none" class="stroke-btn flex-1 py-1 hover:bg-gray-50 text-[10px]" title="No stroke">None</button>
+                <button data-stroke="black" class="stroke-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="Black stroke">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border-2 border-black bg-transparent"></span>
+                </button>
+                <button data-stroke="white" class="stroke-btn flex-1 py-1 hover:bg-gray-50 border-l border-gray-200" title="White stroke">
+                  <span class="block w-3 h-3 mx-auto rounded-sm border-2 border-white bg-gray-400"></span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-gray-400 uppercase tracking-wide">Width</label>
+              <input type="number" id="prop-stroke-width" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 text-center" min="1" max="20" value="2">
+            </div>
+          </div>
+          <!-- Corner Radius (for rectangles) -->
+          <div id="prop-corner-radius-group">
+            <label class="text-[10px] text-gray-400 uppercase tracking-wide">Corner Radius</label>
+            <input type="number" id="prop-corner-radius" class="w-full px-1.5 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 text-center" min="0" max="100" value="0">
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </main>
+
+  <!-- Status Bar -->
+  <footer class="app-footer border-t px-3 sm:px-5 py-2 flex-shrink-0">
+    <div class="flex items-center justify-between text-xs text-gray-400">
+      <span id="status-message" class="truncate flex-1 mr-2">Ready</span>
+      <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        <span id="print-size" class="hidden sm:inline">40 x 30 mm</span>
+        <span class="text-gray-300 hidden sm:inline">|</span>
+        <span class="hidden md:inline">Adapted for the Jadens JD-468BT</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Save Dialog -->
+  <div id="save-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-50">
+    <div class="neutral-dialog rounded-xl p-6 w-80">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Save Design</h3>
+      <input type="text" id="save-name" class="prop-input mb-4" placeholder="Design name">
+      <div class="flex gap-2">
+        <button id="save-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+        <button id="save-confirm" class="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Dialog -->
+  <div id="load-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-50">
+    <div class="neutral-dialog rounded-xl p-6 w-96 max-h-[80vh] flex flex-col">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Load Design</h3>
+      <div id="design-list" class="flex-1 overflow-y-auto mb-4 min-h-[100px]">
+        <div class="text-sm text-gray-400 text-center py-8">No saved designs</div>
+      </div>
+      <div class="border-t border-gray-200 pt-4 mb-4">
+        <p class="text-xs text-gray-500 mb-2">Or import from file:</p>
+        <button id="import-file-btn" class="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Import from File
+        </button>
+        <input type="file" id="import-file-input" class="hidden" accept=".json,application/json">
+      </div>
+      <div class="flex gap-2">
+        <button id="load-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printer Info Popup -->
+  <div id="printer-info-popup" class="hidden absolute bg-white rounded-xl shadow-xl border border-gray-200 w-72 z-50" style="top: 50px; right: 200px;">
+    <div class="p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold text-gray-900">Printer Info</h3>
+        <button id="printer-info-refresh" class="text-gray-400 hover:text-gray-600 p-1" title="Refresh">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </button>
+      </div>
+
+      <!-- Device Info -->
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <span class="text-gray-500">Device</span>
+          <span id="pi-device-name" class="font-medium text-gray-900 text-right max-w-[140px] truncate">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Model</span>
+          <span id="pi-model" class="font-medium text-gray-900">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Protocol</span>
+          <span id="pi-protocol" class="font-medium text-gray-900">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Print Width</span>
+          <span id="pi-width" class="font-medium text-gray-900">--</span>
+        </div>
+
+        <div class="border-t border-gray-100 my-2"></div>
+
+        <!-- Status from printer queries -->
+        <div class="flex justify-between items-center">
+          <span class="text-gray-500">Battery</span>
+          <span id="pi-battery" class="font-medium text-gray-900 flex items-center gap-1">
+            <span id="pi-battery-icon" class="text-gray-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h16a2 2 0 012 2v6a2 2 0 01-2 2H3a2 2 0 01-2-2V9a2 2 0 012-2zm18 3v4"/></svg>
+            </span>
+            <span id="pi-battery-text">--</span>
+          </span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Paper</span>
+          <span id="pi-paper" class="font-medium text-gray-900">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Firmware</span>
+          <span id="pi-firmware" class="font-medium text-gray-900">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Serial</span>
+          <span id="pi-serial" class="font-medium text-gray-900 text-right max-w-[140px] truncate text-xs">--</span>
+        </div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-gray-100">
+        <button id="printer-info-disconnect" class="w-full px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          Disconnect
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print Settings Dialog -->
+  <div id="print-settings-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-[60] p-4">
+    <div class="neutral-dialog rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-96 max-h-[85vh] overflow-y-auto shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Print Settings</h3>
+        <button id="print-settings-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <div class="prop-label">Printer Make</div>
+          <select id="printer-make" class="prop-input mb-2">
+            <option value="auto">Auto-detect</option>
+          </select>
+          <div class="prop-label">Printer Model</div>
+          <select id="printer-model" class="prop-input">
+            <option value="auto">Auto-detect</option>
+          </select>
+          <div class="flex items-center justify-between mt-1">
+            <div class="text-xs text-gray-400">Override if auto-detect doesn't work</div>
+            <button id="manage-printers-btn" class="text-xs text-gray-700 hover:text-gray-900 hover:underline">Manage Printers</button>
+          </div>
+        </div>
+
+        <!-- Density -->
+        <div>
+          <div class="prop-label">Print Density (Darkness)</div>
+          <div class="flex items-center gap-3">
+            <input type="range" id="print-density" min="1" max="8" value="6" class="flex-1">
+            <span id="print-density-value" class="text-sm font-medium w-6 text-center">6</span>
+          </div>
+          <div class="flex justify-between text-xs text-gray-400 mt-1">
+            <span>Light</span>
+            <span>Dark</span>
+          </div>
+        </div>
+
+        <!-- Copies -->
+        <div>
+          <div class="prop-label">Copies</div>
+          <input type="number" id="print-copies" min="1" max="99" value="1" class="prop-input w-20">
+        </div>
+
+        <!-- Feed After Print -->
+        <div>
+          <div class="prop-label">Feed After Print</div>
+          <select id="print-feed" class="prop-input">
+            <option value="0">None (no gap)</option>
+            <option value="16">Small (2mm)</option>
+            <option value="32" selected>Medium (4mm)</option>
+            <option value="48">Large (6mm)</option>
+            <option value="80">Extra Large (10mm)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-6 space-y-2">
+        <button id="print-density-test" class="w-full px-4 py-2 border border-gray-300 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 text-sm">
+          🧪 Print Density Test
+        </button>
+        <div class="flex gap-2">
+          <button id="print-settings-reset" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Reset</button>
+          <button id="print-settings-save" class="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printer Definitions Manager Dialog -->
+  <div id="printer-defs-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-[70] p-4">
+    <div class="neutral-dialog rounded-xl p-5 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Manage Printer Definitions</h3>
+        <button id="printer-defs-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Printer list -->
+      <div id="printer-defs-list" class="space-y-1 mb-4 max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div class="flex gap-2 mb-4">
+        <button id="printer-def-add" class="flex-1 px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">Add New Printer</button>
+      </div>
+
+      <!-- Editor form (hidden until add/edit) -->
+      <div id="printer-def-editor" class="hidden border-t border-gray-200 pt-4">
+        <h4 id="printer-def-editor-title" class="font-semibold text-gray-800 mb-3">New Printer Definition</h4>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">ID (unique key, lowercase, no spaces)</label>
+            <input type="text" id="pdef-id" class="prop-input" placeholder="e.g. my-printer" pattern="[a-z0-9\-]+" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Display Name</label>
+            <input type="text" id="pdef-name" class="prop-input" placeholder="e.g. My Custom Printer" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Group (for dropdown)</label>
+            <input type="text" id="pdef-group" class="prop-input" placeholder="e.g. Custom Printers" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
+            <input type="text" id="pdef-description" class="prop-input" placeholder="Short description" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Protocol</label>
+              <select id="pdef-protocol" class="prop-input">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">DPI</label>
+              <select id="pdef-dpi" class="prop-input">
+                <option value="203">203 (standard)</option>
+                <option value="300">300 (high-res)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Width (bytes)</label>
+              <input type="number" id="pdef-width" class="prop-input" min="1" max="200" placeholder="e.g. 72" />
+              <div id="pdef-width-info" class="text-xs text-gray-400 mt-0.5"></div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Alignment</label>
+              <select id="pdef-alignment" class="prop-input">
+                <option value="center">Center</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Rotated Print</label>
+              <select id="pdef-rotated" class="prop-input">
+                <option value="false">No</option>
+                <option value="true">Yes (sideways)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Label Presets</label>
+              <select id="pdef-label-presets" class="prop-input">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Tape Printer</label>
+            <select id="pdef-tape" class="prop-input">
+              <option value="false">No</option>
+              <option value="true">Yes (continuous tape)</option>
+            </select>
+          </div>
+
+          <div id="pdef-tape-options" class="hidden">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Tape Widths (mm, comma-separated)</label>
+            <input type="text" id="pdef-tape-widths" class="prop-input" placeholder="e.g. 12, 14, 15" />
+            <div class="grid grid-cols-2 gap-3 mt-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Default Tape Width (mm)</label>
+                <input type="number" id="pdef-default-tape-width" class="prop-input" min="1" max="50" placeholder="e.g. 12" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Auto-detect Name Patterns (comma-separated prefixes)</label>
+            <input type="text" id="pdef-patterns" class="prop-input" placeholder="e.g. M260, M26" />
+            <div class="text-xs text-gray-400 mt-0.5">BLE device name prefixes for auto-detection. Leave empty for manual-only.</div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+          <button id="printer-def-cancel" class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+          <button id="printer-def-save" class="flex-1 px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printer Model Prompt Dialog -->
+  <div id="printer-model-prompt" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-50">
+    <div class="neutral-dialog rounded-xl p-6 w-96">
+      <div class="text-center mb-4">
+        <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900">Select Your Printer</h3>
+        <p class="text-sm text-gray-500 mt-1">
+          We couldn't identify <span id="prompt-device-name" class="font-medium text-gray-700"></span>
+        </p>
+      </div>
+
+      <div class="space-y-3">
+        <select id="prompt-model-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+          <option value="" disabled selected>-- Select your printer model --</option>
+          <!-- Populated dynamically from printer definitions -->
+        </select>
+        <button id="prompt-model-confirm" disabled class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed">
+          Confirm
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 text-center mt-4">
+        This choice will be remembered for this device
+      </p>
+    </div>
+  </div>
+
+  <!-- Hidden file input for adding images -->
+  <input type="file" id="image-file-input" accept="image/*,.pdf" class="hidden">
+
+  <div id="app-tooltip" class="instant-tooltip" role="tooltip" aria-hidden="true"></div>
+
+  <!-- Info Dialog -->
+  <div id="info-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-200 w-[600px] max-w-full overflow-hidden">
+      <!-- Header -->
+      <div class="bg-gray-50 px-5 py-4 text-gray-900 relative border-b border-gray-200">
+        <button id="info-close" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white rounded-lg border border-gray-200 flex items-center justify-center">
+            <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold">BLE Label Hub</h3>
+            <p class="text-gray-600 text-xs">Label Designer for the JD-468BT</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="p-5 space-y-4">
+        <!-- Quick Start Steps -->
+        <div class="space-y-3">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span class="text-white text-xs font-bold">1</span>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-900 text-sm">Connect</h4>
+              <p class="text-xs text-gray-600">Click <strong>Connect</strong> to pair with your Jadens printer via Bluetooth</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span class="text-white text-xs font-bold">2</span>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-900 text-sm">Design</h4>
+              <p class="text-xs text-gray-600">Add text, barcodes, QR codes, images, and shapes to your label</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span class="text-white text-xs font-bold">3</span>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-900 text-sm">Print</h4>
+              <p class="text-xs text-gray-600">Hit <strong>Print</strong> to send your design straight to the printer</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- CTA Buttons -->
+        <button id="info-get-started" class="w-full px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-semibold">
+          Get Started
+        </button>
+        <a href="docs/manual.html" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-lg border border-gray-200 hover:bg-gray-200 transition-colors text-sm font-medium">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          Read the User Manual
+        </a>
+
+        <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Supported Printer Families</p>
+          <p class="text-xs text-gray-600 mb-3">
+            The app supports these makes and protocol families. Exact model behavior depends on the printer’s BLE firmware and the profile selected in Print Settings.
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div class="rounded-md border border-gray-200 bg-white p-2">
+              <div class="font-semibold text-gray-900 mb-1">Jadens</div>
+              <div class="text-gray-600">JD-468BT and other TSPL-based shipping label printers</div>
+            </div>
+            <div class="rounded-md border border-gray-200 bg-white p-2">
+              <div class="font-semibold text-gray-900 mb-1">NIIMBOT</div>
+              <div class="text-gray-600">BLE models supported through NiimBlueLib auto-detection and print tasks</div>
+            </div>
+            <div class="rounded-md border border-gray-200 bg-white p-2">
+              <div class="font-semibold text-gray-900 mb-1">Phomemo-style BLE</div>
+              <div class="text-gray-600">M-, D-, P12-, M02-, M04-, and related thermal label families</div>
+            </div>
+            <div class="rounded-md border border-gray-200 bg-white p-2">
+              <div class="font-semibold text-gray-900 mb-1">Other BLE printers</div>
+              <div class="text-gray-600">Additional compatible models can often be added through custom printer definitions</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <p class="text-xs text-gray-500">Designed for the Jadens JD-468BT</p>
+          <p class="text-xs text-gray-400">Requires Chrome, Edge, or Chromium</p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="bg-gray-50 px-5 py-3 border-t border-gray-200 flex items-center justify-between">
+        <p class="text-xs text-gray-400">Adapted for the Jadens JD-468BT</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Template Data Dialog -->
+  <div id="template-data-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-[70] p-4">
+    <div class="neutral-dialog rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-gray-200">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900">Template Data</h3>
+          <p class="text-sm text-gray-500">Fields: <span id="template-fields-list" class="font-medium text-gray-700"></span></p>
+        </div>
+        <button id="template-data-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-4 border-b border-gray-200 flex items-center gap-3">
+        <button id="template-import-csv" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Import CSV
+        </button>
+        <input type="file" id="template-csv-input" class="hidden" accept=".csv,text/csv">
+        <button id="template-add-row" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Add Row
+        </button>
+        <button id="template-clear-all" class="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium">
+          Clear All
+        </button>
+        <div class="flex-1"></div>
+        <span id="template-record-count" class="text-sm text-gray-500">0 records</span>
+      </div>
+
+      <div class="flex-1 overflow-auto p-4">
+        <div id="template-data-empty" class="text-center py-12 text-gray-400">
+          <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <p class="mb-2">No data yet</p>
+          <p class="text-sm">Import a CSV file or add rows manually</p>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr id="template-data-header" class="hidden"></tr>
+          </thead>
+          <tbody id="template-data-body"></tbody>
+        </table>
+      </div>
+
+      <div class="p-4 border-t border-gray-200 flex items-center justify-between">
+        <button id="template-preview-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          Preview Labels
+        </button>
+        <button id="template-print-btn" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Print All
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Dialog -->
+  <div id="preview-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-[70] p-4">
+    <div class="neutral-dialog rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-gray-200">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900">Preview Labels</h3>
+          <p class="text-sm text-gray-500"><span id="preview-count">0 labels</span> - Click to view full size</p>
+        </div>
+        <button id="preview-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-auto p-4">
+        <div id="preview-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4"></div>
+      </div>
+
+      <div class="p-4 border-t border-gray-200 flex justify-end">
+        <button id="preview-print-selected" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium">
+          Print Selected
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Preview Dialog -->
+  <div id="full-preview-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-[70] p-4">
+    <div class="neutral-dialog rounded-xl w-full max-w-lg flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h3 id="full-preview-title" class="text-lg font-semibold text-gray-900">Label Preview</h3>
+        <button id="full-preview-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-4 flex justify-center">
+        <canvas id="full-preview-canvas" class="bg-white shadow-lg rounded max-w-full"></canvas>
+      </div>
+
+      <div class="p-4 border-t border-gray-200 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <button id="full-preview-prev" class="p-2 hover:bg-gray-100 rounded-lg" title="Previous">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button id="full-preview-next" class="p-2 hover:bg-gray-100 rounded-lg" title="Next">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" id="full-preview-include" class="rounded">
+            Include in print
+          </label>
+          <button id="full-preview-print" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium">
+            Print This One
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none"></div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcuts-modal" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-50">
+    <div class="neutral-dialog rounded-xl p-6 max-w-md w-full mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold">Keyboard Shortcuts</h2>
+        <button id="shortcuts-close" class="text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="font-medium text-gray-600">Undo</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+Z</kbd></div>
+        <div class="font-medium text-gray-600">Redo</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+Shift+Z</kbd></div>
+        <div class="font-medium text-gray-600">Duplicate</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+D</kbd></div>
+        <div class="font-medium text-gray-600">Copy</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+C</kbd></div>
+        <div class="font-medium text-gray-600">Paste</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+V</kbd></div>
+        <div class="font-medium text-gray-600">Delete</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Delete</kbd> / <kbd class="px-2 py-1 bg-gray-100 rounded">Backspace</kbd></div>
+        <div class="font-medium text-gray-600">Nudge 1px</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Arrow keys</kbd></div>
+        <div class="font-medium text-gray-600">Nudge 10px</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Shift+Arrow</kbd></div>
+        <div class="font-medium text-gray-600">Group</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+G</kbd></div>
+        <div class="font-medium text-gray-600">Ungroup</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Ctrl+Shift+G</kbd></div>
+        <div class="font-medium text-gray-600">Multi-select</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">Shift+Click</kbd></div>
+        <div class="font-medium text-gray-600">Show this help</div>
+        <div><kbd class="px-2 py-1 bg-gray-100 rounded">?</kbd></div>
+      </div>
+      <div class="mt-4 text-xs text-gray-400 text-center">Press Escape to close</div>
+    </div>
+  </div>
+
+  <!-- Multi-Label Configuration Modal -->
+  <div id="multi-label-modal" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-50">
+    <div class="neutral-dialog rounded-xl p-6 max-w-md w-full mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold">Multi-Label Roll</h2>
+        <button id="multi-label-close" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+      </div>
+
+      <p class="text-sm text-gray-500 mb-4">Configure a roll with multiple labels side by side.</p>
+
+      <!-- Preset Selector -->
+      <div class="mb-4">
+        <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1 block">Load Preset</label>
+        <div class="flex gap-2">
+          <select id="multi-label-preset" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option value="">-- Select Preset --</option>
+          </select>
+          <button id="multi-label-delete-preset" class="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 hidden">Delete</button>
+        </div>
+      </div>
+
+      <hr class="my-4 border-gray-200">
+
+      <!-- Label Dimensions -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1 block">Label Width</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="multi-label-width" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" value="10" min="5" max="50">
+            <span class="text-sm text-gray-400">mm</span>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1 block">Label Height</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="multi-label-height" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" value="20" min="5" max="100">
+            <span class="text-sm text-gray-400">mm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Labels Across and Gap -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1 block">Labels Across</label>
+          <input type="number" id="multi-label-count" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" value="4" min="1" max="8">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1 block">Gap Between</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="multi-label-gap" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" value="2" min="0" max="10" step="0.5">
+            <span class="text-sm text-gray-400">mm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clone Mode Toggle -->
+      <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="multi-label-clone-mode" class="w-4 h-4 rounded border-gray-300 text-gray-700 focus:ring-gray-400" checked>
+          <div>
+            <span class="text-sm font-medium text-gray-700">Clone Mode</span>
+            <p class="text-xs text-gray-500">Design one label, automatically copy to all zones</p>
+          </div>
+        </label>
+      </div>
+
+      <!-- Total Width Preview -->
+      <div class="mb-4 p-3 bg-gray-100 rounded-lg text-sm">
+        <span class="text-gray-700">Total roll width: </span>
+        <span id="multi-label-total-width" class="font-semibold text-gray-900">48mm</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-2">
+        <button id="multi-label-save-preset" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 flex-1">
+          Save as Preset
+        </button>
+        <button id="multi-label-apply" class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 flex-1">
+          Apply
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print Progress Modal -->
+  <div id="print-progress-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="neutral-dialog rounded-xl p-6 w-80">
+      <div class="text-center mb-4">
+        <div class="text-lg font-semibold" id="progress-title">Printing Labels</div>
+        <div class="text-sm text-gray-500" id="progress-subtitle">Preparing...</div>
+      </div>
+      <div class="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
+        <div id="progress-bar" class="bg-gray-900 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <div class="text-center text-sm text-gray-500" id="progress-detail">0 of 0</div>
+      <button id="progress-cancel" class="mt-4 w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Menu Overlay -->
+  <div id="mobile-menu-overlay" class="mobile-only mobile-hidden fixed inset-0 z-[60]">
+    <!-- Backdrop -->
+    <div id="mobile-menu-backdrop" class="absolute inset-0 bg-black/50"></div>
+
+    <!-- Slide-out Menu -->
+    <aside id="mobile-menu-panel" class="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl transform -translate-x-full">
+      <div class="p-4 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-gray-900">BLE Label Hub</h2>
+          <button id="mobile-menu-close" class="p-2 text-gray-400 hover:text-gray-600 active:bg-gray-100 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 overflow-y-auto" style="max-height: calc(100vh - 80px);">
+        <!-- Label Settings -->
+        <div class="mb-6">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Label Size</label>
+          <div class="flex items-center gap-2 mt-1">
+            <select id="mobile-label-size" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value="12x40">12x40mm</option>
+              <option value="15x30">15x30mm</option>
+              <option value="20x30">20x30mm</option>
+              <option value="25x50">25x50mm</option>
+              <option value="30x20">30x20mm</option>
+              <option value="30x40">30x40mm</option>
+              <option value="40x30" selected>40x30mm</option>
+              <option value="40x60">40x60mm</option>
+              <option value="50x25">50x25mm</option>
+              <option value="50x30">50x30mm</option>
+              <option value="50x80">50x80mm</option>
+              <option value="60x40">60x40mm</option>
+              <option disabled>── Round Labels ──</option>
+              <option value="20mm Round">20mm Round</option>
+              <option value="30mm Round">30mm Round</option>
+              <option value="40mm Round">40mm Round</option>
+              <option value="50mm Round">50mm Round</option>
+              <option value="custom">Custom...</option>
+              <option value="multi-label">Multi-Label Roll...</option>
+            </select>
+            <!-- P12/A30 length adjust buttons (hidden by default, shown for tape printers) -->
+            <div id="mobile-label-length-adjust" class="hidden flex items-center gap-2">
+              <button id="mobile-length-minus" class="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold">−</button>
+              <button id="mobile-length-plus" class="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold">+</button>
+            </div>
+          </div>
+          <!-- Tape width selector (hidden by default, shown for tape printers like P12/A30) -->
+          <div id="mobile-tape-width-selector" class="hidden mt-2">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tape Width</label>
+            <select id="mobile-tape-width" class="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value="12">12mm</option>
+              <option value="14">14mm</option>
+              <option value="15">15mm</option>
+            </select>
+          </div>
+          <!-- Custom size inputs (hidden by default) -->
+          <div id="mobile-custom-size" class="hidden mt-2">
+            <div class="flex items-center gap-2">
+              <input type="number" id="mobile-custom-width" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-base" placeholder="Width" min="10" max="100">
+              <span class="text-gray-400 text-base">x</span>
+              <input type="number" id="mobile-custom-height" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-base" placeholder="Height" min="10" max="200">
+              <span class="text-base text-gray-400">mm</span>
+            </div>
+            <label class="flex items-center gap-2 mt-2 cursor-pointer">
+            <input type="checkbox" id="mobile-custom-round" class="w-5 h-5 rounded border-gray-300 text-gray-700 focus:ring-gray-400">
+              <span class="text-base text-gray-600">Round/Circle label</span>
+            </label>
+            <label id="mobile-custom-continuous-wrap" class="hidden flex items-center gap-2 mt-2 cursor-pointer">
+              <input type="checkbox" id="mobile-custom-continuous" class="w-5 h-5 rounded border-gray-300 text-gray-700 focus:ring-gray-400">
+              <span class="text-base text-gray-600">Continuous tape</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Connection -->
+        <div class="mb-6">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Connection</label>
+          <div class="mt-2 flex gap-2">
+            <button id="mobile-connect-btn" class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm active:bg-gray-100">
+              Connect
+            </button>
+            <button id="mobile-disconnect-btn" class="hidden flex-1 px-3 py-2 border border-red-200 bg-red-50 text-red-700 rounded-lg text-sm active:bg-red-100">
+              Disconnect
+            </button>
+            <select id="mobile-conn-type" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+              <option value="ble">BT</option>
+              <option value="usb">USB</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Templates -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Templates</label>
+            <span id="mobile-template-status" class="text-xs text-gray-700 font-medium bg-gray-100 px-2 py-0.5 rounded-full hidden">0 fields</span>
+          </div>
+          <p class="text-xs text-gray-400 mt-1 mb-2">Use {{Field}} in text for variable data</p>
+
+          <!-- Fields detected -->
+          <div id="mobile-template-fields" class="hidden mb-3">
+            <div class="text-xs text-gray-500 mb-1">Fields detected:</div>
+            <div id="mobile-template-field-tags" class="flex flex-wrap gap-1"></div>
+          </div>
+
+          <!-- Data info -->
+          <div class="flex items-center justify-between text-sm text-gray-600 mb-2">
+            <span>Data records:</span>
+            <span id="mobile-template-data-count" class="font-medium">0</span>
+          </div>
+
+          <!-- Template actions -->
+          <div class="space-y-2">
+            <button id="mobile-template-manage" class="w-full px-3 py-2 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-800 border border-gray-200 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M9 11h6"/></svg>
+              Manage Data
+            </button>
+            <div class="flex gap-2">
+              <button id="mobile-template-preview" class="flex-1 px-3 py-2 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                Preview
+              </button>
+              <button id="mobile-template-print" class="flex-1 px-3 py-2 bg-gray-900 hover:bg-gray-800 active:bg-gray-950 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                Print (<span id="mobile-template-print-count">0</span>)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-1">
+          <button id="mobile-save-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+            </svg>
+            Save Design
+          </button>
+          <button id="mobile-load-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+            </svg>
+            Load Design
+          </button>
+          <button id="mobile-export-json-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Export as JSON
+          </button>
+          <button id="mobile-export-pdf-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+            Export as PDF
+          </button>
+          <button id="mobile-export-png-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Export as PNG
+          </button>
+
+          <hr class="my-3 border-gray-200">
+
+          <button id="mobile-undo-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3 disabled:opacity-50" disabled>
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            Undo
+          </button>
+          <button id="mobile-redo-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3 disabled:opacity-50" disabled>
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+            </svg>
+            Redo
+          </button>
+
+          <hr class="my-3 border-gray-200">
+
+          <button id="mobile-print-settings-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            Print Settings
+          </button>
+          <button id="mobile-info-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            About
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Mobile Fixed Bottom Toolbar -->
+  <div id="mobile-toolbar" class="mobile-only mobile-toolbar flex-col">
+    <!-- Selection Actions Row (shown when element selected) -->
+    <div id="mobile-selection-row" class="hidden mobile-toolbar-row border-b border-gray-100">
+      <button id="mobile-edit-btn" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        <span>Edit</span>
+      </button>
+      <button id="mobile-duplicate-btn" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <span>Copy</span>
+      </button>
+      <button id="mobile-raise-btn" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+        </svg>
+        <span>Forward</span>
+      </button>
+      <button id="mobile-lower-btn" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+        <span>Back</span>
+      </button>
+      <button id="mobile-delete-btn" class="mobile-tool-btn danger">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        <span>Delete</span>
+      </button>
+    </div>
+
+    <!-- Main Add Tools Row -->
+    <div class="mobile-toolbar-row">
+      <button id="mobile-add-text" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"/>
+        </svg>
+        <span>Text</span>
+      </button>
+      <button id="mobile-add-image" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <span>Image</span>
+      </button>
+      <div class="mobile-divider"></div>
+      <button id="mobile-add-rect" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <rect x="4" y="6" width="16" height="12" rx="1" stroke-width="2"/>
+        </svg>
+        <span>Rect</span>
+      </button>
+      <button id="mobile-add-ellipse" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="12" rx="8" ry="6" stroke-width="2"/>
+        </svg>
+        <span>Circle</span>
+      </button>
+      <button id="mobile-add-line" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/>
+        </svg>
+        <span>Line</span>
+      </button>
+      <div class="mobile-divider"></div>
+      <button id="mobile-add-barcode" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M4 4h2v16H4V4zm4 0h1v16H8V4zm3 0h2v16h-2V4zm4 0h1v16h-1V4zm3 0h2v16h-2V4z"/>
+        </svg>
+        <span>Barcode</span>
+      </button>
+      <button id="mobile-add-qr" class="mobile-tool-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h2m10 0h2M4 8h2m10 0h2m2-4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2z"/>
+        </svg>
+        <span>QR</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Properties Panel (slides up when editing) -->
+  <div id="mobile-props-panel" class="mobile-only mobile-props-panel flex-col">
+    <div class="mobile-props-header">
+      <span id="mobile-props-title" class="font-medium text-gray-900">Properties</span>
+      <button id="mobile-props-close" class="p-1 -mr-1 rounded hover:bg-gray-100">
+        <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div id="mobile-props-content" class="mobile-props-content">
+      <!-- Dynamic content based on selected element type -->
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script type="module">
+    import * as pdfjsModule from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+    pdfjsModule.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+    window.pdfjsLib = pdfjsModule;
+  </script>
+  <script type="module" src="app.js?v=151"></script>
+  <script>
+    // Show body once styles are ready
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.body.classList.add('ready');
+      });
+    });
+  </script>
+</body>
+</html>
