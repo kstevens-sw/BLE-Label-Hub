@@ -1,11 +1,11 @@
 # BLE Label Hub
 
-**[Try it live →](https://kstevens-sw.github.io/BLE-Label-Hub/)**
-
 A browser-based thermal label designer and driver. Design labels with text, barcodes, QR
 codes, images, and shapes, then print directly to BLE/USB thermal printers — no app, no drivers.
-Runs entirely client-side. Originally built for the **Jadens JD-468BT**, now supports Niimbot,
-Phomemo, and many M-/D-series, P12/A30 tape, and TSPL shipping printers.
+Runs entirely client-side. Originally built for the **Jadens JD-468BT**, but now supports Niimbot,
+Phomemo, and many M-/D-series, P12/A30 tape, and TSPL shipping printers. 
+
+**[Try it live →](https://kstevens-sw.github.io/BLE-Label-Hub/)**
 
 ## Quick start
 
