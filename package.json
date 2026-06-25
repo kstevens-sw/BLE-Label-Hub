@@ -5,10 +5,14 @@
   "main": "index.js",
   "scripts": {
     "vendor": "node scripts/copy-vendor.js",
-    "start": "npm run vendor && python3 -m http.server 3001 --directory src/web",
-    "test": "npx playwright test",
-    "test:headed": "npx playwright test --headed",
-    "manual:screenshots": "npx playwright test"
+    "serve": "python3 -m http.server 3001 --directory src/web",
+    "start": "npm run vendor && npm run serve",
+    "test": "npm run test:e2e",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:update": "npx playwright test --update-snapshots",
+    "ci": "npm run vendor && npm run test:e2e",
+    "manual:screenshots": "node scripts/take-screenshots.mjs"
   },
   "repository": {
     "type": "git",
@@ -18,6 +22,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@mmote/niimbluelib": "0.0.1-alpha.40",
     "puppeteer": "^24.37.2"
