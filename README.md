@@ -5,16 +5,6 @@ codes, images, and shapes, then print directly to BLE/USB thermal printers — n
 Runs entirely client-side. Originally built for the **Jadens JD-468BT**, now supports Niimbot,
 Phomemo, and many M-/D-series, P12/A30 tape, and TSPL shipping printers.
 
-## Screenshots
-
-| Editor | Print Settings |
-|--------|---------------|
-| ![Editor](docs/screenshots/01-editor.png) | ![Print Settings](docs/screenshots/03-print-settings.png) |
-
-| Print Layout Preview | Multi-tab workspace |
-|----------------------|---------------------|
-| ![Print Layout Preview](docs/screenshots/04-print-layout-preview.png) | ![Multi-tab](docs/screenshots/05-multi-tab.png) |
-
 ## Quick start
 
 ```bash
