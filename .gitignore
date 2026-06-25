@@ -1,18 +1,20 @@
-.*
-!.github/
-*.md
-!README.md
-!docs/manual.md
+# Dependencies
 node_modules/
 
 # Playwright
 test-results/
 playwright-report/
 playwright/.cache/
+.playwright-mcp/
 
-# Site-specific SEO files (contain domain-specific URLs)
+# Build / generated
 src/web/sitemap.xml
 src/web/robots.txt
-src/web/screenshot.png
 src/web/google*.html
+
+# macOS
+.DS_Store
+
+# Editor / AI session artifacts
+.opencode/
 archive/
