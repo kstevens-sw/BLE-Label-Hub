@@ -147,6 +147,7 @@ test.describe.serial('Print Layout Preview', () => {
     await page.click('#print-settings-btn');
     await expect(page.locator('#print-settings-dialog')).toBeVisible();
     await page.locator('#auto-fill-enable').check();
+    await page.locator('#auto-fill-sheet-size').selectOption('custom');
     await page.locator('#auto-fill-sheet-w').fill('100');
     await page.locator('#auto-fill-sheet-h').fill('100');
     await page.locator('#auto-fill-sheet-w').dispatchEvent('input');
