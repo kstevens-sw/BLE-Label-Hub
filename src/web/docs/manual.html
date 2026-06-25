@@ -194,7 +194,6 @@
         <li><a href="#printer-setup">Printer setup</a></li>
         <li><a href="#supported-printers">Supported printers</a></li>
         <li><a href="#templates">Templates and batch printing</a></li>
-        <li><a href="#custom-printers">Custom printer definitions</a></li>
         <li><a href="#troubleshooting">Troubleshooting</a></li>
       </ul>
     </nav>
@@ -328,7 +327,7 @@
       <p>NIIMBOT printers use their own BLE protocol. Select <strong>Niimbot</strong> from the connection-type dropdown — using <em>Bluetooth</em> mode will pair but fail to print. Supported models include B1, B21, D11, D110, B18, and others recognized by the NiimBlueLib library.</p>
 
       <h3>Not seeing your printer?</h3>
-      <p>Add a custom definition in Print Settings. You need the printhead width in mm, the DPI, and optionally a BLE name prefix for auto-detection. See <a href="#custom-printers">Custom printer definitions</a>.</p>
+      <p>Add a custom definition in Print Settings. You need the printhead width in mm, the DPI, and optionally a BLE name prefix for auto-detection.</p>
     </section>
 
     <section id="templates">
@@ -348,16 +347,6 @@
           <p class="muted">Print all rows or selected rows with progress tracking.</p>
         </div>
       </div>
-    </section>
-
-    <section id="custom-printers">
-      <h2>Custom printer definitions</h2>
-      <p>You can add or override printer definitions from the printer settings dialog. That is useful when you want a custom width, a different density profile, or a BLE name pattern for automatic detection.</p>
-      <ul class="step-list">
-        <li>Create a new definition when a model is missing from the built-in list.</li>
-        <li>Override an existing definition when your hardware revision behaves differently.</li>
-        <li>Use name patterns to make the app recognize printers automatically on connect.</li>
-      </ul>
     </section>
 
     <section id="troubleshooting">
