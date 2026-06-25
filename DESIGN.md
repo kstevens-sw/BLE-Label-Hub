@@ -1,4 +1,4 @@
-# Unified BLE Web Print Design System
+# BLE Label Hub Design System
 
 ## 1. Atmosphere & Identity
 

@@ -1,5 +1,5 @@
 /**
- * Unified BLE Web Print Application
+ * BLE Label Hub Application
  * Multi-element label editor with drag, resize, and rotate
  * v116
  */
@@ -5567,7 +5567,7 @@ function handleExport() {
 
   const a = document.createElement('a');
   a.href = url;
-  a.download = `unified-ble-design-${Date.now()}.json`;
+  a.download = `ble-label-hub-design-${Date.now()}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -8755,7 +8755,7 @@ function init() {
     }
   });
 
-  console.log('Unified BLE Web Print initialized');
+  console.log('BLE Label Hub initialized');
 }
 
 // Initialize when DOM is ready

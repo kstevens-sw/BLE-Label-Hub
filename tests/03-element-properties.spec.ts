@@ -56,7 +56,7 @@ test.describe.serial('Element Properties', () => {
     await expect(page.locator('#props-qr')).toBeVisible();
     await elementScreenshot(page, '#props-panel', CH, 5, 'qr-properties-panel');
 
-    await page.locator('#prop-qr-data').fill('https://unified-ble-web-print.local');
+    await page.locator('#prop-qr-data').fill('https://ble-label-hub.local');
     await page.locator('#prop-qr-data').dispatchEvent('input');
     await page.waitForTimeout(200);
 
