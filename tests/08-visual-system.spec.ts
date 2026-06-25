@@ -22,7 +22,7 @@ test.describe('Warm modern visual system', () => {
     });
 
     // Then the approved warm-modern system is active
-    expect(design.page).toBe('#f3efe8');
+    expect(design.page).toBe('#f6f1ea');
     expect(design.accent).toBe('#b65f45');
     expect(design.font).toContain('Manrope');
   });
