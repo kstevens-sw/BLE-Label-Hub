@@ -2708,6 +2708,41 @@ async function handlePrintSinglePreview() {
   }
 }
 
+function showPrintLayoutPreview() {
+  const elements = state.templateData.length > 0
+    ? evaluateExpressions(substituteFields(state.elements, state.templateData[state.currentPreviewIndex] || state.templateData[0]))
+    : evaluateExpressions(state.elements);
+
+  const af = state.printSettings.autoFill;
+  const { printerModel } = state.printSettings;
+  const deviceName = state.transport?.getDeviceName?.() || '';
+  const printerWidth = getPrinterWidthBytes(deviceName, printerModel);
+  const printerDpi = getPrinterDpi(deviceName, printerModel);
+
+  let cols = 1, rows = 1, gapMm = 0;
+  const { width: lw, height: lh } = state.labelSize;
+  let infoText = `${lw}×${lh}mm`;
+
+  if (af?.enabled && !state.multiLabel.enabled) {
+    const maxW = printableWidthMm(printerWidth, printerDpi);
+    const grid = computeAutoFillGrid(state.labelSize, { width: af.sheetWidth, height: af.sheetHeight }, af.gapMm, maxW);
+    if (grid.count > 1) {
+      cols = grid.cols;
+      rows = grid.rows;
+      gapMm = af.gapMm;
+      infoText = `${grid.cols}×${grid.rows} labels (${grid.count} total) · ${af.sheetWidth}×${af.sheetHeight}mm sheet`;
+    }
+  }
+
+  const src = state.renderer.getPreviewCanvas(elements, { cols, rows, gapMm });
+  const dst = $('#print-layout-canvas');
+  dst.width = src.width;
+  dst.height = src.height;
+  dst.getContext('2d').drawImage(src, 0, 0);
+  $('#print-layout-info').textContent = infoText;
+  $('#print-layout-dialog').classList.remove('hidden');
+}
+
 /**
  * Get selected elements
  */
@@ -6242,17 +6277,6 @@ function initMobileUI() {
   });
   $('#mobile-print-btn')?.addEventListener('click', handlePrint);
 
-  // Mobile dither preview toggle
-  $('#mobile-dither-preview-btn')?.addEventListener('click', () => {
-    state.ditherPreview = !state.ditherPreview;
-    state.renderer.setDitherPreview(state.ditherPreview);
-
-    // Update both buttons
-    $('#dither-preview-btn')?.classList.toggle('is-active', state.ditherPreview);
-    $('#mobile-dither-preview-btn')?.classList.toggle('is-active', state.ditherPreview);
-    setStatus(state.ditherPreview ? 'Print preview: ON' : 'Print preview: OFF');
-    render();
-  });
 
   // Mobile template buttons
   $('#mobile-template-manage')?.addEventListener('click', () => {
@@ -7701,19 +7725,12 @@ function init() {
     }
   }
 
-  // Dither preview toggle (shows exact print output for all elements)
-  const ditherPreviewBtn = $('#dither-preview-btn');
-  const updatePreviewButtonState = () => {
-    ditherPreviewBtn?.classList.toggle('is-active', state.ditherPreview);
-    $('#mobile-dither-preview-btn')?.classList.toggle('is-active', state.ditherPreview);
-  };
-
-  ditherPreviewBtn?.addEventListener('click', () => {
-    state.ditherPreview = !state.ditherPreview;
-    state.renderer.setDitherPreview(state.ditherPreview);
-    updatePreviewButtonState();
-    setStatus(state.ditherPreview ? 'Print preview: ON' : 'Print preview: OFF');
-    render();
+  $('#dither-preview-btn')?.addEventListener('click', showPrintLayoutPreview);
+  $('#mobile-dither-preview-btn')?.addEventListener('click', showPrintLayoutPreview);
+  $('#print-layout-close')?.addEventListener('click', () => $('#print-layout-dialog').classList.add('hidden'));
+  $('#print-layout-close-btn')?.addEventListener('click', () => $('#print-layout-dialog').classList.add('hidden'));
+  $('#print-layout-dialog')?.addEventListener('click', (e) => {
+    if (e.target === $('#print-layout-dialog')) $('#print-layout-dialog').classList.add('hidden');
   });
 
   $('#workspace-rotate-btn')?.addEventListener('click', rotateWorkspaceDesignSpace);
