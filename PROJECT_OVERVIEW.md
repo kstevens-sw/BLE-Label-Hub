@@ -1,4 +1,4 @@
-# BLE Label Hub — Project Overview (LLM Context)
+# BLE Label Hub — Project Overview
 
 A single-page, browser-based **label designer and printer driver** for BLE/USB thermal label
 printers. It runs entirely client-side (no backend): you design a label on a canvas, then it
