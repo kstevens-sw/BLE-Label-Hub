@@ -1,57 +1,45 @@
-/**
- * localStorage persistence for BLE Label Hub designs
- */
-
 import { STORAGE_KEYS } from './constants.js';
+import {
+  listDesignEntries,
+  upsertDesignMetadata,
+  removeDesignMetadata,
+  designRecordExists,
+  removeLegacyDesign,
+  readLegacyDesigns,
+} from './design-store.js';
+import {
+  putDesignRecord,
+  getDesignRecord,
+  deleteDesignRecord as deleteDesignPayload,
+} from './design-db.js';
 
-const STORAGE_KEY = STORAGE_KEYS.DESIGNS;
 const MULTI_LABEL_PRESETS_KEY = STORAGE_KEYS.MULTI_LABEL_PRESETS;
-
-/**
- * Get all saved designs from localStorage
- */
-function getAllDesigns() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch (e) {
-    console.error('Failed to load designs:', e);
-    return {};
-  }
-}
-
-/**
- * Save all designs to localStorage
- */
-function setAllDesigns(designs) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(designs));
-    return true;
-  } catch (e) {
-    console.error('Failed to save designs:', e);
-    return false;
-  }
-}
 
 /**
  * Save a design to localStorage
  * @param {string} name - Design name
  * @param {object} design - { elements: [], labelSize: { width, height } }
  */
-export function saveDesign(name, design) {
+export async function saveDesign(name, design) {
   if (!name || !name.trim()) {
     throw new Error('Design name is required');
   }
 
-  const designs = getAllDesigns();
-  designs[name.trim()] = {
+  const trimmed = name.trim();
+  const record = {
     ...design,
     savedAt: Date.now(),
   };
 
-  if (!setAllDesigns(designs)) {
-    throw new Error('Failed to save design');
+  try {
+    await putDesignRecord(trimmed, record);
+  } catch (error) {
+    console.error('Failed to save design payload:', error);
+    throw new Error('Could not save design. Browser storage may be full or blocked.');
   }
+
+  upsertDesignMetadata(trimmed, record);
+  removeLegacyDesign(trimmed);
 
   return true;
 }
@@ -61,9 +49,19 @@ export function saveDesign(name, design) {
  * @param {string} name - Design name
  * @returns {object|null} - { elements: [], labelSize: { width, height }, savedAt: number }
  */
-export function loadDesign(name) {
-  const designs = getAllDesigns();
-  return designs[name] || null;
+export async function loadDesign(name) {
+  const trimmed = name?.trim?.();
+  if (!trimmed) return null;
+
+  try {
+    const record = await getDesignRecord(trimmed);
+    if (record) return record;
+  } catch (error) {
+    console.error('Failed to load design payload:', error);
+  }
+
+  const legacyDesigns = readLegacyDesigns();
+  return legacyDesigns[trimmed] || null;
 }
 
 /**
@@ -71,63 +69,26 @@ export function loadDesign(name) {
  * @returns {Array} - [{ name, savedAt, labelSize, elementCount, isTemplate, templateDataCount, isMultiLabel }]
  */
 export function listDesigns() {
-  const designs = getAllDesigns();
-  return Object.entries(designs)
-    .map(([name, design]) => ({
-      name,
-      savedAt: design.savedAt,
-      labelSize: design.labelSize,
-      elementCount: design.elements?.length || 0,
-      isTemplate: design.isTemplate || false,
-      templateFieldCount: design.templateFields?.length || 0,
-      templateDataCount: design.templateData?.length || 0,
-      hasImages: design.elements?.some(el => el.type === 'image') || false,
-      isMultiLabel: design.multiLabel?.enabled || false,
-      multiLabel: design.multiLabel || null,
-    }))
-    .sort((a, b) => b.savedAt - a.savedAt); // Most recent first
+  return listDesignEntries();
 }
 
 /**
  * Delete a design from localStorage
  * @param {string} name - Design name
  */
-export function deleteDesign(name) {
-  const designs = getAllDesigns();
-  if (!(name in designs)) {
-    return false;
+export async function deleteDesign(name) {
+  const trimmed = name?.trim?.();
+  if (!trimmed) return false;
+
+  try {
+    await deleteDesignPayload(trimmed);
+  } catch (error) {
+    console.error('Failed to delete design payload:', error);
   }
 
-  delete designs[name];
-  return setAllDesigns(designs);
-}
-
-/**
- * Rename a design
- * @param {string} oldName - Current name
- * @param {string} newName - New name
- */
-export function renameDesign(oldName, newName) {
-  if (!newName || !newName.trim()) {
-    throw new Error('New name is required');
-  }
-
-  const designs = getAllDesigns();
-  if (!(oldName in designs)) {
-    throw new Error('Design not found');
-  }
-
-  const trimmedNew = newName.trim();
-  if (trimmedNew !== oldName && trimmedNew in designs) {
-    throw new Error('A design with that name already exists');
-  }
-
-  designs[trimmedNew] = designs[oldName];
-  if (trimmedNew !== oldName) {
-    delete designs[oldName];
-  }
-
-  return setAllDesigns(designs);
+  removeDesignMetadata(trimmed);
+  removeLegacyDesign(trimmed);
+  return true;
 }
 
 /**
@@ -135,25 +96,7 @@ export function renameDesign(oldName, newName) {
  * @param {string} name - Design name
  */
 export function designExists(name) {
-  const designs = getAllDesigns();
-  return name in designs;
-}
-
-/**
- * Export design as JSON string (for file download)
- * @param {string} name - Design name
- */
-export function exportDesign(name) {
-  const design = loadDesign(name);
-  if (!design) {
-    throw new Error('Design not found');
-  }
-
-  return JSON.stringify({
-    name,
-    version: 3, // Version 3 includes multi-label support
-    ...design,
-  }, null, 2);
+  return designRecordExists(name);
 }
 
 /**
@@ -162,7 +105,7 @@ export function exportDesign(name) {
  * @param {string} overrideName - Optional name override
  * @returns {object} - { name, hasTemplateData, hasMultiLabel }
  */
-export function importDesign(jsonString, overrideName = null) {
+export async function importDesign(jsonString, overrideName = null) {
   try {
     const data = JSON.parse(jsonString);
 
@@ -204,7 +147,7 @@ export function importDesign(jsonString, overrideName = null) {
       };
     }
 
-    saveDesign(name, designData);
+    await saveDesign(name, designData);
 
     return {
       name,
@@ -218,21 +161,6 @@ export function importDesign(jsonString, overrideName = null) {
     }
     throw e;
   }
-}
-
-/**
- * Get storage usage info
- */
-export function getStorageInfo() {
-  const designs = getAllDesigns();
-  const designCount = Object.keys(designs).length;
-  const dataSize = JSON.stringify(designs).length;
-
-  return {
-    designCount,
-    dataSize,
-    dataSizeKB: (dataSize / 1024).toFixed(2),
-  };
 }
 
 // =============================================================================
@@ -298,16 +226,4 @@ export function deleteMultiLabelPreset(name) {
     console.error('Failed to delete multi-label preset:', e);
     return false;
   }
-}
-
-/**
- * List all multi-label presets
- * @returns {Array} - [{ name, labelWidth, labelHeight, labelsAcross, gapMm }]
- */
-export function listMultiLabelPresets() {
-  const presets = getMultiLabelPresets();
-  return Object.entries(presets).map(([name, config]) => ({
-    name,
-    ...config,
-  }));
 }

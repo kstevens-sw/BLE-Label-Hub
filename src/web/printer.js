@@ -492,10 +492,6 @@ export function isRotatedPrinter(deviceName, modelOverride = 'auto') {
   return config.protocol === 'd-series' || config.protocol === 'p12';
 }
 
-export function isNarrowMSeriesPrinter(deviceName, modelOverride = 'auto') {
-  return getPrinterWidthBytes(deviceName, modelOverride) === 48;
-}
-
 export function getPrinterAlignment(deviceName, modelOverride = 'auto') {
   const config = _resolveConfig(deviceName, modelOverride);
   const def = config.definition;
@@ -581,54 +577,6 @@ function rotateRaster90CW(data, widthBytes, heightLines) {
 }
 
 /**
- * Rotate raster data 90 degrees counter-clockwise
- * Used for P12 printers which may need opposite rotation from D30
- *
- * @param {Uint8Array} data - Original raster data (1 bit per pixel, packed in bytes)
- * @param {number} widthBytes - Width in bytes (8 pixels per byte)
- * @param {number} heightLines - Height in lines
- * @returns {Object} { data, widthBytes, heightLines } - Rotated raster data
- */
-function rotateRaster90CCW(data, widthBytes, heightLines) {
-  const srcWidthPx = widthBytes * 8;
-  const srcHeightPx = heightLines;
-
-  // After 90° CCW rotation: new width = old height, new height = old width
-  const dstWidthPx = srcHeightPx;
-  const dstHeightPx = srcWidthPx;
-  const dstWidthBytes = Math.ceil(dstWidthPx / 8);
-
-  const rotated = new Uint8Array(dstWidthBytes * dstHeightPx);
-
-  // For each pixel in source, calculate its position in destination
-  for (let srcY = 0; srcY < srcHeightPx; srcY++) {
-    for (let srcX = 0; srcX < srcWidthPx; srcX++) {
-      // Get source pixel
-      const srcByteIdx = srcY * widthBytes + Math.floor(srcX / 8);
-      const srcBitIdx = 7 - (srcX % 8);
-      const pixel = (data[srcByteIdx] >> srcBitIdx) & 1;
-
-      // 90° CCW rotation: (x, y) -> (y, width - 1 - x)
-      const dstX = srcY;
-      const dstY = srcWidthPx - 1 - srcX;
-
-      // Set destination pixel
-      const dstByteIdx = dstY * dstWidthBytes + Math.floor(dstX / 8);
-      const dstBitIdx = 7 - (dstX % 8);
-      if (pixel) {
-        rotated[dstByteIdx] |= (1 << dstBitIdx);
-      }
-    }
-  }
-
-  return {
-    data: rotated,
-    widthBytes: dstWidthBytes,
-    heightLines: dstHeightPx,
-  };
-}
-
-/**
  * Print raster data to a Phomemo printer
  *
  * @param {Object} transport - BLE or USB transport instance
@@ -651,11 +599,31 @@ export async function print(transport, rasterData, options = {}) {
   const isM04 = isM04Printer(deviceName, printerModel);
   const isM110 = isM110Printer(deviceName, printerModel);
   const isTSPL = isTSPLPrinter(deviceName, printerModel);
-  const isNiimbot = _resolveConfig(deviceName, printerModel).protocol === 'niimbot';
+  // Route to the Niimbot encoder if the protocol resolves to niimbot OR the
+  // active transport is the Niimbot transport (name detection can miss when
+  // niimbluelib reports a generic device name).
+  const isNiimbot = _resolveConfig(deviceName, printerModel).protocol === 'niimbot'
+    || typeof transport?.printRaster === 'function';
   const printerDesc = getPrinterDescription(deviceName, printerModel);
   console.log(`Printing: ${widthBytes}x${heightLines} (${data.length} bytes)`);
   console.log(`Device: ${deviceName}, Model: ${printerModel}, Detected: ${printerDesc}`);
   console.log(`Transport: ${isBLE ? 'BLE' : 'USB'}, Density: ${density}, Feed: ${feed}`);
+
+  // Head-width guard (single source of truth = printers.json widthBytes). Rotated
+  // printers (D-series/P12/A30) turn the raster 90° before sending, so the OUTGOING
+  // width equals the design's height. If that exceeds the physical head, the printer
+  // silently feeds blank — so reject it loudly here instead. Catches the whole class
+  // of "tall design rotated into an over-wide strip" bugs (e.g. Auto-Fill on a D30).
+  if (isRotatedPrinter(deviceName, printerModel)) {
+    const headBytes = getPrinterWidthBytes(deviceName, printerModel);
+    const outgoingWidthBytes = Math.ceil(heightLines / 8); // width after 90° rotation
+    if (headBytes && outgoingWidthBytes > headBytes) {
+      throw new Error(
+        `Image too wide for ${printerDesc}: needs ${outgoingWidthBytes * 8}px after rotation, ` +
+        `but the print head is ${headBytes * 8}px. Reduce the label height or turn off Auto-Fill for this printer.`
+      );
+    }
+  }
 
   if (isNiimbot) {
     await transport.printRaster(rasterData, {

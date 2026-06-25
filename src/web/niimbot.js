@@ -6,6 +6,7 @@ export class NiimbotTransport {
     this.connected = false;
     this.deviceName = '';
     this.printerInfo = { battery: null };
+    this.firmware = null;
     this.onDisconnect = null;
   }
 
@@ -31,8 +32,29 @@ export class NiimbotTransport {
       if (this.onDisconnect) this.onDisconnect();
     });
 
-    const result = await this.client.connect();
-    this.deviceName = result.deviceName || 'NIIMBOT';
+    // Surface niimbluelib handshake events so a red-printer/green-web mismatch
+    // is diagnosable without opening devtools. onLog is wired in app.js.
+    const log = (msg) => { console.log('[niimbot]', msg); if (this.onLog) this.onLog(msg); };
+    this.client.on('connect', () => log('BLE link up'));
+    this.client.on('printerinfofetched', () => {
+      this.firmware = this.client.info?.softwareVersion || null;
+      log('Printer handshake OK');
+    });
+    this.client.on('heartbeat', () => log('Heartbeat OK'));
+    this.client.on('heartbeatfailed', () => log('Heartbeat FAILED — printer not responding'));
+
+    let result;
+    try {
+      result = await this.client.connect();
+    } catch (e) {
+      // niimbluelib fails to find its channel characteristic on non-Niimbot
+      // printers. Make the cause actionable instead of a cryptic lib error.
+      if (/characteristic/i.test(e?.message || '')) {
+        throw new Error('Not a Niimbot printer. Open Print Settings and set Make to Auto (or the correct make), then reconnect.');
+      }
+      throw e;
+    }
+    this.deviceName = result?.deviceName || result?.name || 'NIIMBOT';
     this.connected = this.client.isConnected();
     return this.connected;
   }

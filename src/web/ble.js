@@ -132,6 +132,9 @@ export class BLETransport {
             optionalServices,
           });
         } catch (filterError) {
+          // User cancelled/dismissed the picker — don't reopen with all devices.
+          // Shift+Click is the explicit "show all" path.
+          if (filterError.name === 'NotFoundError') throw filterError;
           console.log('Name filter failed, trying acceptAllDevices:', filterError.message);
           this.device = await navigator.bluetooth.requestDevice({
             acceptAllDevices: true,

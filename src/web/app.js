@@ -1,14 +1,14 @@
 /**
- * BLE Label Hub Application
+ * Unified BLE Web Print Application
  * Multi-element label editor with drag, resize, and rotate
  * v116
  */
 
-import { CanvasRenderer } from './canvas.js?v=115';
-import { BLETransport } from './ble.js?v=103';
-import { NiimbotTransport } from './niimbot.js?v=1';
+import { CanvasRenderer } from './canvas.js?v=116';
+import { BLETransport } from './ble.js?v=104';
+import { NiimbotTransport } from './niimbot.js?v=2';
 import { USBTransport } from './usb.js?v=101';
-import { print, printDensityTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=129';
+import { print, printDensityTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=132';
 import {
   createTextElement,
   createImageElement,
@@ -55,6 +55,7 @@ import {
   loadDesign,
   listDesigns,
   deleteDesign,
+  designExists,
 } from './storage.js?v=100';
 import {
   extractFields,
@@ -85,7 +86,8 @@ import {
   D_SERIES_ROUND_LABELS,
   TAPE_LABEL_SIZES,
   PM241_LABEL_SIZES,
-} from './constants.js?v=105';
+} from './constants.js?v=106';
+import { applyTheme, loadSavedTheme } from './themes.js?v=1';
 import {
   bindCheckbox,
   bindToggleButton,
@@ -170,6 +172,8 @@ const state = {
     copies: 1,        // Number of copies
     feed: 32,         // Feed after print in dots (8 dots = 1mm)
     printerModel: 'auto',  // 'auto', 'narrow-48', 'mini-54', 'wide-72', 'mid-76', 'wide-81', 'd-series'
+    // Auto-Fill Page: print-time tiling of the single design across a larger sheet
+    autoFill: { enabled: false, sheetWidth: 50, sheetHeight: 80, gapMm: 0 },
   },
   // Template state
   templateFields: [],     // Detected field names from elements
@@ -417,6 +421,7 @@ function saveHistory() {
   }
 
   updateUndoRedoButtons();
+  markTabDirty();
 }
 
 // Track input values for change detection on blur
@@ -458,6 +463,7 @@ function trackInputForHistory(selector, getElementValue) {
         state.historyIndex++;
       }
       updateUndoRedoButtons();
+      markTabDirty();
     }
 
     _inputHistoryTracking.delete(el);
@@ -536,6 +542,242 @@ function resetHistory() {
   state.history = [];
   state.historyIndex = -1;
   updateUndoRedoButtons();
+}
+
+// ===== Multi-tab workspace ===================================================
+// Each tab is an independent label design. One renderer/canvas is shared; we
+// swap the per-design slice of `state` on switch. Global state (transport,
+// renderer, printSettings, pointer) stays shared across tabs.
+const TAB_FIELDS = [
+  'elements', 'labelSize', 'tapeWidth', 'selectedIds', 'currentDesignName',
+  'zoom', 'panOffset', 'workspaceRotation', 'ditherPreview',
+  'templateFields', 'templateData', 'selectedRecords', 'currentPreviewIndex',
+  'history', 'historyIndex', 'multiLabel', 'activeZone', 'editingTextId',
+];
+const TABS_STORAGE_KEY = 'unified_ble_tabs';
+let tabs = [];
+let activeTabIndex = 0;
+
+function blankTabState(labelSize) {
+  return {
+    elements: [],
+    labelSize: labelSize ? { ...labelSize } : { width: 40, height: 30 },
+    tapeWidth: state.tapeWidth,
+    selectedIds: [],
+    currentDesignName: null,
+    zoom: 1,
+    panOffset: { x: 0, y: 0 },
+    workspaceRotation: 0,
+    ditherPreview: false,
+    templateFields: [],
+    templateData: [],
+    selectedRecords: [],
+    currentPreviewIndex: 0,
+    history: [],
+    historyIndex: -1,
+    multiLabel: { enabled: false, labelWidth: 10, labelHeight: 20, labelsAcross: 4, gapMm: 2, cloneMode: true },
+    activeZone: 0,
+    editingTextId: null,
+    dirty: false,
+  };
+}
+
+// Snapshot the live per-design state into the active tab.
+function captureActiveTab() {
+  if (!tabs[activeTabIndex]) tabs[activeTabIndex] = { dirty: false };
+  const tab = tabs[activeTabIndex];
+  for (const f of TAB_FIELDS) {
+    tab[f] = JSON.parse(JSON.stringify(state[f]));
+  }
+}
+
+// Re-sync the whole editor UI from `state` after the per-design fields change.
+// Shared by handleLoad and restoreTab (mirrors handleLoad's tail). Does NOT
+// touch history — callers decide whether to reset it.
+function applyDesignToUI() {
+  if (state.multiLabel.enabled) {
+    const select = $('#label-size');
+    select.value = 'multi-label';
+    $('#custom-size').classList.add('hidden');
+    state.renderer.setMultiLabelDimensions(
+      state.multiLabel.labelWidth, state.multiLabel.labelHeight,
+      state.multiLabel.labelsAcross, state.multiLabel.gapMm);
+    state.renderer.setActiveZone(state.activeZone);
+    updateZoneToolbar();
+  } else {
+    state.renderer.disableMultiLabel();
+    $('#zone-toolbar').classList.add('hidden');
+    const sizeKey = findMatchingLabelSizeKey(state.labelSize);
+    const select = $('#label-size');
+    if (sizeKey && LABEL_SIZES[sizeKey]) {
+      select.value = sizeKey;
+      $('#custom-size').classList.add('hidden');
+    } else {
+      select.value = 'custom';
+      $('#custom-size').classList.remove('hidden');
+      $('#custom-width').value = state.labelSize.width;
+      $('#custom-height').value = state.labelSize.height;
+    }
+    applyCurrentLabelSize();
+  }
+  syncLabelSizeUI();
+  state.renderer.clearCache();
+  updatePrintSize();
+  updateToolbarState();
+  updatePropertiesPanel();
+  updateUndoRedoButtons();
+  detectTemplateFields();
+  updateMobileLabelName();
+  render();
+}
+
+// Load tab i's per-design state into `state` and refresh the UI.
+function restoreTab(i) {
+  const tab = tabs[i];
+  if (!tab) return;
+  for (const f of TAB_FIELDS) {
+    if (tab[f] !== undefined) state[f] = JSON.parse(JSON.stringify(tab[f]));
+  }
+  applyDesignToUI();
+}
+
+function switchTab(i) {
+  if (i === activeTabIndex || !tabs[i]) return;
+  captureActiveTab();
+  activeTabIndex = i;
+  restoreTab(i);
+  renderTabBar();
+  persistTabs();
+}
+
+function newTab() {
+  captureActiveTab();
+  tabs.push(blankTabState(state.labelSize));
+  activeTabIndex = tabs.length - 1;
+  restoreTab(activeTabIndex);
+  renderTabBar();
+  persistTabs();
+}
+
+// Execute tab close (split from closeTab so save-first flow can call it after saving).
+function performCloseTab(i) {
+  if (!tabs[i]) return;
+  const closingActive = i === activeTabIndex;
+  if (!closingActive) captureActiveTab();
+  tabs.splice(i, 1);
+  if (tabs.length === 0) {
+    tabs.push(blankTabState(state.labelSize));
+    activeTabIndex = 0;
+  } else if (closingActive) {
+    activeTabIndex = Math.min(activeTabIndex, tabs.length - 1);
+  } else if (i < activeTabIndex) {
+    activeTabIndex--;
+  }
+  restoreTab(activeTabIndex);
+  renderTabBar();
+  persistTabs();
+}
+
+// Close tab (with confirmation if dirty).
+function closeTab(i) {
+  if (!tabs[i]) return;
+  if (tabs[i].dirty) {
+    _closeTabIndex = i; // stash for dialog handlers
+    $('#close-tab-dialog').classList.remove('hidden');
+  } else {
+    performCloseTab(i);
+  }
+}
+
+let _closeTabIndex = null; // stashed tab index for close-confirm dialog
+let _closeTabAfterSave = null; // tab to close after save completes
+
+function renderTabBar() {
+  const bar = $('#tab-bar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  tabs.forEach((tab, i) => {
+    const isActive = i === activeTabIndex;
+    const name = isActive ? (state.currentDesignName || 'Untitled') : (tab.currentDesignName || 'Untitled');
+    const btn = document.createElement('button');
+    btn.className = 'tab-item shell-control' + (isActive ? ' is-active' : '');
+    btn.title = name;
+    btn.addEventListener('click', () => switchTab(i));
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'tab-name';
+    nameSpan.textContent = name + (tab.dirty ? ' •' : '');
+    btn.appendChild(nameSpan);
+
+    const close = document.createElement('span');
+    close.className = 'tab-close';
+    close.textContent = '×';
+    close.title = 'Close tab';
+    close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(i); });
+    btn.appendChild(close);
+
+    bar.appendChild(btn);
+  });
+  const add = document.createElement('button');
+  add.className = 'tab-add shell-control';
+  add.title = 'New Tab';
+  add.textContent = '+';
+  add.addEventListener('click', () => newTab());
+  bar.appendChild(add);
+}
+
+// Mark the active tab dirty (called from edit choke points). Only re-renders the
+// bar on the clean→dirty transition; persistence is debounced.
+function markTabDirty() {
+  const t = tabs[activeTabIndex];
+  if (t && !t.dirty) { t.dirty = true; renderTabBar(); }
+  persistTabs();
+}
+
+let _persistTabsTimer = null;
+function persistTabs() {
+  clearTimeout(_persistTabsTimer);
+  _persistTabsTimer = setTimeout(flushPersistTabs, 500);
+}
+function flushPersistTabs() {
+  clearTimeout(_persistTabsTimer);
+  _persistTabsTimer = null;
+  if (tabs.length === 0) return;
+  captureActiveTab();
+  // ponytail: history not persisted — undo resets on reload; revisit if users ask.
+  const slim = tabs.map((t) => {
+    const o = {};
+    for (const f of TAB_FIELDS) {
+      if (f === 'history' || f === 'historyIndex') continue;
+      o[f] = t[f];
+    }
+    o.dirty = !!t.dirty;
+    return o;
+  });
+  safeStorageSet(TABS_STORAGE_KEY, safeJsonStringify({ tabs: slim, activeTabIndex }));
+}
+
+// Build the tabs model at startup: restore from storage, else seed one tab from
+// the current (blank) state.
+function initTabs() {
+  const parsed = safeJsonParse(safeStorageGet(TABS_STORAGE_KEY), null);
+  if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+    tabs = parsed.tabs.map((t) => ({
+      ...blankTabState(t.labelSize),
+      ...t,
+      history: [],
+      historyIndex: -1,
+      dirty: !!t.dirty,
+    }));
+    activeTabIndex = Math.min(parsed.activeTabIndex || 0, tabs.length - 1);
+    restoreTab(activeTabIndex);
+  } else {
+    tabs = [];
+    activeTabIndex = 0;
+    captureActiveTab(); // tabs[0] = current state
+    tabs[0].dirty = false;
+  }
+  renderTabBar();
 }
 
 /**
@@ -631,7 +873,6 @@ function isPrintCancelled() {
  */
 function updateConnectionStatus(connected) {
   const dot = $('#status-dot');
-  const dotStandalone = $('#status-dot-standalone');
   const printerInfoBtn = $('#printer-info-btn');
   const ditherPreviewBtn = $('#dither-preview-btn');
   const connectBtn = $('#connect-btn');
@@ -649,16 +890,19 @@ function updateConnectionStatus(connected) {
     mobileDot.classList.toggle('bg-gray-400', !connected);
   }
 
-  // Hide/show desktop connect button and connection type selector
+  // Always show desktop connect button and connection type selector
   if (connectBtn) {
-    connectBtn.classList.toggle('hidden', connected);
+    // Button now toggles connect/disconnect, so keep it looking clickable
+    connectBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    setTooltipText(connectBtn, connected ? 'Disconnect printer' : 'Connect to printer');
+    // Update label via span so the icon survives (textContent would wipe the svg)
+    const connectLabel = connectBtn.querySelector('span');
+    if (connectLabel) connectLabel.textContent = connected ? 'Disconnect' : 'Connect';
   }
   if (connType) {
-    connType.classList.toggle('hidden', connected);
-    // On small screens conn-type is already hidden, so only toggle for larger screens
-    if (!connected) {
-      connType.classList.add('hidden', 'sm:block');
-    }
+    // Always show connection type selector on desktop
+    connType.classList.toggle('opacity-50', connected);
+    connType.disabled = connected;
   }
 
   // Hide/show mobile connect button
@@ -669,20 +913,27 @@ function updateConnectionStatus(connected) {
     mobileDisconnectBtn.classList.toggle('hidden', !connected);
   }
 
-  // Show/hide printer info button vs standalone dot
+  // Show/hide printer info button vs standalone dot (on the right side)
   if (connected) {
     printerInfoBtn.classList.remove('hidden');
-    dotStandalone.classList.add('hidden');
     // When printer info button is visible, it has rounded-l-lg, so dither preview shouldn't
     ditherPreviewBtn.classList.remove('rounded-l-lg');
   } else {
     printerInfoBtn.classList.add('hidden');
-    dotStandalone.classList.remove('hidden');
     // When printer info button is hidden, dither preview needs rounded-l-lg
     ditherPreviewBtn.classList.add('rounded-l-lg');
     // Hide popup if open
     $('#printer-info-popup').classList.add('hidden');
   }
+
+  updateFooterPrinterInfo();
+}
+
+function setTooltipText(element, text) {
+  if (!element) return;
+  element.dataset.tooltip = text;
+  element.setAttribute('aria-label', text);
+  element.removeAttribute('title');
 }
 
 function initInstantTooltips() {
@@ -713,7 +964,8 @@ function initInstantTooltips() {
 
   const showTooltip = (target) => {
     const label = target.dataset.tooltip?.trim();
-    if (!label || target.matches(':disabled, [aria-disabled="true"]')) return;
+    // Show tooltips even on disabled buttons (so users learn what greyed tools do).
+    if (!label) return;
 
     activeTarget = target;
     tooltip.textContent = label;
@@ -803,6 +1055,39 @@ function updatePrinterInfoUI(deviceName, printerModel) {
 }
 
 /**
+ * Update footer with connected printer's make, model, and firmware.
+ * Clears when no printer is connected.
+ */
+function updateFooterPrinterInfo() {
+  const el = $('#footer-printer-info');
+  if (!el) return;
+  if (!state.transport?.isConnected()) {
+    el.textContent = '';
+    el.classList.add('hidden');
+    return;
+  }
+  const deviceName = state.transport.getDeviceName?.() || '';
+  const def = getPrinterDefinition(state.printSettings.printerModel) || getDetectedDefinition(deviceName);
+  // def.name is already "Make Model" (e.g. "NIIMBOT B1"); fall back to detected name.
+  const makeModel = def?.name || getMatchedPattern(deviceName) || deviceName || 'Printer';
+  const piFw = $('#pi-firmware')?.textContent;
+  const fw = state.transport.firmware || (piFw && piFw !== '--' ? piFw : '');
+  el.textContent = `${makeModel}${fw ? ` · FW ${fw}` : ''}`;
+  el.classList.remove('hidden');
+}
+
+/**
+ * Position a dropdown as a fixed popover under a button, reparented to <body>
+ * so it escapes the ribbon's overflow/stacking context (else it clips/pops under).
+ */
+function openPopoverUnder(dropdown, btn) {
+  if (dropdown.parentElement !== document.body) document.body.appendChild(dropdown);
+  const r = btn.getBoundingClientRect();
+  dropdown.style.left = r.left + 'px';
+  dropdown.style.top = (r.bottom + 4) + 'px';
+}
+
+/**
  * Update the mobile label name display
  */
 function updateMobileLabelName() {
@@ -841,6 +1126,7 @@ function updatePrinterInfoFromQuery(field, value, allInfo) {
       break;
     case 'firmware':
       $('#pi-firmware').textContent = value || '--';
+      updateFooterPrinterInfo();
       break;
     case 'serial':
       $('#pi-serial').textContent = value || '--';
@@ -853,7 +1139,7 @@ function updatePrinterInfoFromQuery(field, value, allInfo) {
  * @param {string} deviceName - BLE device name (optional)
  * @param {string} model - Printer model override (optional)
  */
-function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
+function updateLabelSizeDropdown(deviceName = '', model = 'auto', forceDefault = false) {
   const select = $('#label-size');
   const currentValue = select.value;
   const currentSize = state.labelSize;
@@ -893,8 +1179,142 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
     defaultKey = '40x30';
   }
 
+ // Per-model default overrides keyed by definition id. Derives from each
+  // printer's printhead width (pixels/dpi*25.4).  Width → default rule:
+  //   ≤24mm  (d-series bucket):  40x12  (already the d-series default, no
+  //   384px/48mm (203 dpi):      50x30  (B1-class sticker printers)
+  //   400–448px / 48–56mm:      50x30  (A20, K2, B203, B50 group)
+  //   567–591px / 48–50mm:     50x30  (B1 Pro, B21 Pro group)
+  //   600–662px / 75–56mm:     50x30  (S6-P, S6, P18, C1 group)
+  //   697px / ~59mm:            50x30  (P1)
+  //   851px / ~72mm (300 dpi):  75x50  (B32/B32R, EP3M, M3, T8S, A63)
+  //   832px / ~104mm (203 dpi): 100x100 (B4, T2S)
+  //   1600px / ~200mm:          100x100 (ET10)
+  // Built-in Phomemo M-series:       50x30 for 48mm, 75x50 for 72–75mm
+  // Built-in TSPL / PM-241: 102x152 (already handled by tspl defaultKey)
+  const MODEL_DEFAULT_SIZE = {
+// --- 12 mm group (d-series) ------------------------------------------------
+// No overrides needed — d-series bucket already defaults to 40x12.
+// b16, b18, b18s, d11, d110, d110-m, d11s, fust, h1, h1s, n1  (96 px)
+// hi-d110, hi-nb-d11  (120 px)
+// c1  (178 px)
+// betty, d101  (192 px)
+
+// --- 48 mm group (384 px, 203 dpi) — "50x30" -------------------------------
+    'niimbot-b1':           '50x30',
+    'niimbot-b1-se':        '50x30',
+    'niimbot-b11':          '50x30',
+    'niimbot-b2':           '50x30',
+    'niimbot-b21':          '50x30',
+    'niimbot-b21-c2b':      '50x30',
+    'niimbot-b21-l2b':      '50x30',
+    'niimbot-b21s':         '50x30',
+    'niimbot-b21s-c2b':     '50x30',
+    'niimbot-b50w':         '50x30',
+    'niimbot-jc-m90':       '50x30',
+    'niimbot-s1':  '50x30',
+    'niimbot-s3':  '50x30',
+    'niimbot-t6':  '50x30',
+    'niimbot-t7':  '50x30',
+
+    // 567 px / ~48 mm (203 dpi) — same usable width as B1
+    'niimbot-b1-pro':       '50x30',
+    'niimbot-b2-pro':       '50x30',
+    'niimbot-ep2m-h':       '50x30',
+    'niimbot-m2-h':         '50x30',
+    'niimbot-t8':           '50x30',
+
+    // 591 px / ~50 mm (203 dpi)
+    'niimbot-b21-pro':      '50x30',
+    'niimbot-tp2m-h':       '50x30',
+
+    // 400 px / ~50 mm (203 dpi)
+    'niimbot-a20':          '50x30',
+    'niimbot-a203':         '50x30',
+    'niimbot-b203':         '50x30',
+    'niimbot-b50':          '50x30',
+
+    // 448 px / ~56 mm (203 dpi)
+    'niimbot-k2':           '50x30',
+
+    // 662 px / ~56 mm (300 dpi)
+    'niimbot-p18':          '50x30',
+    'niimbot-p1s':          '50x30',
+
+    // 697 px / ~59 mm (203 dpi)
+    'niimbot-p1':           '50x30',
+
+// --- 72 mm group (576 px, 203 dpi) — "50x30" -------------------------------
+    'niimbot-a8':           '50x30',
+    'niimbot-a8-p':         '50x30',
+    'niimbot-b3s':          '50x30',
+    'niimbot-b3s-p':        '50x30',
+    'niimbot-jcb3s':        '50x30',
+    'niimbot-s6':           '50x30',
+
+// --- 75 mm group (600 px, 203 dpi) — "75x50" ------------------------------
+    'niimbot-b3':           '75x50',
+    'niimbot-b31':          '75x50',
+    'niimbot-s6-p':         '75x50',
+
+// --- 72 mm group (851 px, 300 dpi) — "75x50" ------------------------------
+    'niimbot-a63':          '75x50',
+    'niimbot-b32':          '75x50',
+    'niimbot-b32r':         '75x50',
+    'niimbot-ep3m':         '75x50',
+    'niimbot-m3':           '75x50',
+    'niimbot-t8s':          '75x50',
+    'niimbot-z401':         '75x50',
+
+    // 80 mm group (640 px, 203 dpi) — "80x50"
+    'niimbot-k3':           '80x50',
+    'niimbot-k3-w':         '80x50',
+    'niimbot-mp3k':         '80x50',
+    'niimbot-mp3k-w':       '80x50',
+
+// --- 104+ mm group — "100x100" (larger format) ----------------------------
+    'niimbot-b4':           '100x100',
+    'niimbot-t2s':          '100x100',
+    'niimbot-et10':         '100x100',
+
+// --- Built-in Phomemo M-series (48-mm printers) — "50x30" -----------------
+    'm02':            '50x30',
+    'm02s':           '50x30',
+    'm02x':           '50x30',
+    'm02-pro':        '50x30',
+    'm03':            '50x30',
+    't02':            '50x30',
+    'm110':           '50x30',
+    'm120':           '50x30',
+    'm121':           '50x30',
+
+// --- Built-in Phomemo mid-size (72–75 mm printers) — "50x30" (most
+// ship with 50 mm wide rolls; 75x50 available for larger paper) ----------
+    'm200':           '50x30',
+    'm220':           '50x30',
+    'm221':           '50x30',
+    'm250':           '50x30',
+    'm260':           '50x30',
+
+// --- M04S multi-width — user selects, default 50x30 for 53 mm ----------------
+    'm04s':           '50x30',
+    'm04as':          '50x30',
+
+// --- niimbot-auto fallback — B1-class 50x30 ------------------------------
+    'niimbot-auto':   '50x30',
+  };
+  const def = getPrinterDefinition(model) || getDetectedDefinition(deviceName);
+  const modelDefault = def && MODEL_DEFAULT_SIZE[def.id];
+  if (modelDefault && rectSizes[modelDefault]) defaultKey = modelDefault;
+
   const continuousSizes = isDSeries ? D_SERIES_CONTINUOUS_SIZES : {};
   LABEL_SIZES = { ...rectSizes, ...roundSizes, ...continuousSizes };
+
+  // Stash the printer's rect sizes + default so Auto-Fill can reuse the same table.
+  const defSize = LABEL_SIZES[defaultKey];
+  if (defSize) state.defaultLabelSize = { width: defSize.width, height: defSize.height };
+  state.availableRectSizes = rectSizes;
+  state.defaultLabelKey = defaultKey;
 
   // Clear existing options (except custom)
   while (select.options.length > 0) {
@@ -905,7 +1325,7 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
   for (const [key, size] of Object.entries(rectSizes)) {
     const option = document.createElement('option');
     option.value = key;
-    option.textContent = `${size.width}x${size.height}mm`;
+    option.textContent = `${size.width}x${size.height}mm${key === defaultKey ? ' (Default)' : ''}`;
     select.appendChild(option);
   }
 
@@ -953,7 +1373,17 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
 
   // Try to restore current size or pick a sensible default
   const currentKey = findMatchingLabelSizeKey(currentSize);
-  if (currentValue === 'multi-label') {
+  if (forceDefault) {
+    // Printer explicitly selected — always apply that printer's default size
+    select.value = defaultKey;
+    state.labelSize = normalizeLabelSizeForEditing({ ...LABEL_SIZES[defaultKey] });
+    applyCurrentLabelSize();
+    state.renderer.clearCache();
+    updatePrintSize();
+    zoomToFitIfNeeded();
+    render();
+    $('#custom-size').classList.add('hidden');
+  } else if (currentValue === 'multi-label') {
     // Keep multi-label mode if already in it
     select.value = 'multi-label';
   } else if (currentKey && LABEL_SIZES[currentKey]) {
@@ -976,7 +1406,7 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
   }
 
   // Also update mobile dropdown
-  updateMobileLabelSizeDropdown(deviceName, model);
+  updateMobileLabelSizeDropdown(deviceName, model, defaultKey);
 }
 
 /**
@@ -984,7 +1414,7 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
  * @param {string} deviceName - BLE device name (optional)
  * @param {string} model - Printer model override (optional)
  */
-function updateMobileLabelSizeDropdown(deviceName = '', model = 'auto') {
+function updateMobileLabelSizeDropdown(deviceName = '', model = 'auto', defaultKey = '') {
   const mobileSelect = $('#mobile-label-size');
   const desktopSelect = $('#label-size');
   if (!mobileSelect) return;
@@ -1023,7 +1453,7 @@ function updateMobileLabelSizeDropdown(deviceName = '', model = 'auto') {
   for (const [key, size] of Object.entries(rectSizes)) {
     const option = document.createElement('option');
     option.value = key;
-    option.textContent = `${size.width}x${size.height}mm`;
+    option.textContent = `${size.width}x${size.height}mm${key === defaultKey ? ' (Default)' : ''}`;
     mobileSelect.appendChild(option);
   }
 
@@ -1480,7 +1910,6 @@ function detectTemplateFields() {
 
   if (fieldsChanged && state.templateData.length > 0) {
     // Fields changed - keep data but user may need to re-map
-    console.log('Template fields changed:', state.templateFields);
   }
 
   updateTemplateIndicator();
@@ -2371,7 +2800,7 @@ function modifyElement(id, changes) {
   state.elements = updateElement(state.elements, id, changes);
 
   // Only clear cache if content or size changed (not just position/rotation)
-  const contentKeys = ['width', 'height', 'text', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'background', 'noWrap', 'clipOverflow', 'autoScale', 'verticalAlign', 'imageData', 'barcodeData', 'barcodeFormat', 'qrData', 'brightness', 'contrast', 'dither', 'showText', 'textFontSize', 'textBold'];
+  const contentKeys = ['width', 'height', 'text', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'background', 'noWrap', 'clipOverflow', 'autoScale', 'verticalAlign', 'imageData', 'barcodeData', 'barcodeFormat', 'qrData', 'brightness', 'contrast', 'dither', 'grayscale', 'showText', 'textFontSize', 'textBold'];
   const needsCacheClear = Object.keys(changes).some(key => contentKeys.includes(key));
   if (needsCacheClear) {
     state.renderer.clearCache(id);
@@ -2591,6 +3020,10 @@ function updatePropertiesPanel() {
       $('#prop-image-brightness-input').value = element.brightness || 0;
       $('#prop-image-contrast').value = element.contrast || 0;
       $('#prop-image-contrast-input').value = element.contrast || 0;
+      const bwBtn = $('#prop-image-bw');
+      bwBtn.classList.toggle('bg-gray-900', !!element.grayscale);
+      bwBtn.classList.toggle('text-white', !!element.grayscale);
+      bwBtn.classList.toggle('border-gray-900', !!element.grayscale);
       break;
 
     case 'barcode':
@@ -3036,21 +3469,6 @@ function getZoneRelativePos(canvasX, canvasY) {
 }
 
 /**
- * Convert zone-relative position to canvas position
- */
-function getCanvasPosFromZone(zoneIndex, zoneX, zoneY) {
-  if (!state.multiLabel.enabled || zoneIndex === 0) {
-    return { x: zoneX, y: zoneY };
-  }
-
-  const zone = state.renderer.multiLabel.zones[zoneIndex];
-  return {
-    x: zone.x + zoneX,
-    y: zone.y + zoneY,
-  };
-}
-
-/**
  * Get element at point, accounting for multi-label zones
  */
 function getElementAtCanvasPoint(canvasX, canvasY) {
@@ -3208,343 +3626,6 @@ function getBoundsWithCanvasPos(bounds, zoneIndex) {
     cx: bounds.cx + zone.x,
     cy: bounds.cy + zone.y,
   };
-}
-
-/**
- * Handle canvas mouse down
- */
-function handleCanvasMouseDown(e) {
-  const pos = getCanvasPos(e);
-
-  // If inline editing is active, clicking on canvas closes it
-  if (state.editingTextId) {
-    // Don't close immediately - let the dblclick event fire first if it's a double-click
-    return;
-  }
-
-  // In multi-label mode, check which zone was clicked and switch if needed
-  if (state.multiLabel.enabled) {
-    const { zoneIndex } = getZoneRelativePos(pos.x, pos.y);
-    if (zoneIndex !== null && zoneIndex !== state.activeZone) {
-      // Switch to clicked zone
-      setActiveZone(zoneIndex);
-    }
-  }
-
-  // Use zone-aware element detection
-  const clickedElement = getElementAtCanvasPoint(pos.x, pos.y);
-  const selectedElements = getSelectedElements();
-  const isMultiSelect = state.selectedIds.length > 1;
-
-  // For multi-selection or groups, check group bounding box handles first
-  if (isMultiSelect || (selectedElements.length === 1 && selectedElements[0].groupId)) {
-    const rawBounds = getMultiElementBounds(selectedElements);
-    // Adjust bounds for canvas position in multi-label mode
-    const bounds = selectedElements.length > 0
-      ? getBoundsWithCanvasPos(rawBounds, selectedElements[0].zone || 0)
-      : rawBounds;
-    if (bounds) {
-      const handle = getGroupHandleAtPoint(pos.x, pos.y, bounds);
-      if (handle) {
-        saveHistory();
-        state.isDragging = true;
-        state.dragStartX = pos.x;
-        state.dragStartY = pos.y;
-        state.dragStartElements = selectedElements.map(el => ({ ...el }));
-        state.dragStartBounds = { ...rawBounds }; // Store raw bounds for calculations
-
-        if (handle === HandleType.ROTATE) {
-          state.dragType = 'group-rotate';
-          // Calculate starting angle using canvas-adjusted center
-          const angle = Math.atan2(pos.y - bounds.cy, pos.x - bounds.cx);
-          state.dragStartAngle = (angle * 180) / Math.PI + 90;
-        } else {
-          state.dragType = 'group-resize';
-          state.dragHandle = handle;
-        }
-        return;
-      }
-    }
-  }
-
-  // Single element: check individual handles
-  if (state.selectedIds.length === 1) {
-    const selected = selectedElements[0];
-    if (selected) {
-      // Get element with canvas-adjusted position for handle detection
-      const adjustedElement = getElementWithCanvasPos(selected);
-      const handle = getHandleAtPoint(pos.x, pos.y, adjustedElement);
-      if (handle) {
-        saveHistory();
-        state.isDragging = true;
-        state.dragStartX = pos.x;
-        state.dragStartY = pos.y;
-        state.dragStartElements = [{ ...selected }]; // Store original element
-
-        if (handle === HandleType.ROTATE) {
-          state.dragType = 'rotate';
-        } else {
-          state.dragType = 'resize';
-          state.dragHandle = handle;
-        }
-        return;
-      }
-    }
-  }
-
-  // Check if clicking on an element
-  if (clickedElement) {
-    // Shift+click toggles selection
-    if (e.shiftKey) {
-      toggleElementSelection(clickedElement.id);
-    } else {
-      // Check if clicking on already-selected element
-      const alreadySelected = state.selectedIds.includes(clickedElement.id);
-      if (!alreadySelected) {
-        selectElement(clickedElement.id);
-      }
-    }
-
-    // Start move drag for all selected elements
-    const currentSelected = getSelectedElements();
-    saveHistory();
-    state.isDragging = true;
-    state.dragType = currentSelected.length > 1 ? 'group-move' : 'move';
-    state.dragStartX = pos.x;
-    state.dragStartY = pos.y;
-    state.dragStartElements = currentSelected.map(el => ({ ...el }));
-    state.dragStartBounds = getMultiElementBounds(currentSelected);
-    return;
-  }
-
-  // Clicked on empty area - but still in a valid zone in multi-label mode
-  if (state.multiLabel.enabled) {
-    const { zoneIndex } = getZoneRelativePos(pos.x, pos.y);
-    if (zoneIndex === null) {
-      // Clicked in gap, just deselect
-      deselect();
-      return;
-    }
-  }
-
-  deselect();
-}
-
-/**
- * Handle canvas mouse move
- */
-function handleCanvasMouseMove(e) {
-  const pos = getCanvasPos(e);
-  const canvas = state.renderer.canvas;
-
-  if (state.isDragging && state.dragStartElements) {
-    const dx = pos.x - state.dragStartX;
-    const dy = pos.y - state.dragStartY;
-
-    switch (state.dragType) {
-      case 'move':
-        // Single element move
-        const el = state.dragStartElements[0];
-        let newX = el.x + dx;
-        let newY = el.y + dy;
-        // Detect alignment guides and get snap adjustments
-        const snapResult = detectAlignmentGuides(
-          { x: newX, y: newY, width: el.width, height: el.height },
-          [el.id]
-        );
-        // Apply soft snap
-        newX += snapResult.snapX;
-        newY += snapResult.snapY;
-        modifyElement(el.id, { x: newX, y: newY });
-        state.alignmentGuides = snapResult.guides;
-        break;
-
-      case 'group-move':
-        // Multi-element move - first move without snap to calculate bounds
-        state.elements = moveElements(
-          state.elements,
-          state.dragStartElements.map(e => e.id),
-          dx, dy
-        );
-        // Detect alignment guides for the group bounds
-        const movedElements = getSelectedElements();
-        const groupBounds = getMultiElementBounds(movedElements);
-        if (groupBounds) {
-          const groupSnapResult = detectAlignmentGuides(
-            { x: groupBounds.x, y: groupBounds.y, width: groupBounds.width, height: groupBounds.height },
-            movedElements.map(e => e.id)
-          );
-          // Apply soft snap by moving elements again by snap offset
-          if (groupSnapResult.snapX !== 0 || groupSnapResult.snapY !== 0) {
-            state.elements = moveElements(
-              state.elements,
-              movedElements.map(e => e.id),
-              groupSnapResult.snapX, groupSnapResult.snapY
-            );
-          }
-          state.alignmentGuides = groupSnapResult.guides;
-        }
-        // Reset start positions for continuous drag
-        state.dragStartElements = getSelectedElements().map(e => ({ ...e }));
-        state.dragStartX = pos.x;
-        state.dragStartY = pos.y;
-        render();
-        break;
-
-      case 'resize':
-        // Single element resize
-        const resizeEl = state.dragStartElements[0];
-        // For images with lockAspectRatio, preserve aspect by default (Shift to unlock)
-        // For other elements, Shift preserves aspect
-        const isLockedImage = resizeEl.type === 'image' && resizeEl.lockAspectRatio !== false;
-        const preserveAspect = isLockedImage ? !e.shiftKey : e.shiftKey;
-        const newBounds = calculateResize(resizeEl, state.dragHandle, dx, dy, preserveAspect);
-        modifyElement(resizeEl.id, constrainSize({ ...resizeEl, ...newBounds }));
-        break;
-
-      case 'group-resize':
-        // Multi-element resize - scale from original positions
-        const { scaleX, scaleY } = calculateGroupResize(
-          state.dragStartBounds,
-          state.dragHandle,
-          dx, dy,
-          e.shiftKey
-        );
-
-        // Determine if this is a side handle (only one dimension changes)
-        const isHorizontalSide = state.dragHandle === HandleType.E || state.dragHandle === HandleType.W;
-        const isVerticalSide = state.dragHandle === HandleType.N || state.dragHandle === HandleType.S;
-
-        // Apply scale to original elements, not current state
-        const scaledElements = state.dragStartElements.map(origEl => {
-          const elCx = origEl.x + origEl.width / 2;
-          const elCy = origEl.y + origEl.height / 2;
-          const centerX = state.dragStartBounds.cx;
-          const centerY = state.dragStartBounds.cy;
-
-          // For side handles, only scale in one direction
-          const effectiveScaleX = isVerticalSide ? 1 : scaleX;
-          const effectiveScaleY = isHorizontalSide ? 1 : scaleY;
-
-          // Scale position relative to group center
-          const newCx = centerX + (elCx - centerX) * effectiveScaleX;
-          const newCy = centerY + (elCy - centerY) * effectiveScaleY;
-
-          // Scale size - for side handles, only change one dimension
-          const newWidth = Math.max(origEl.width * effectiveScaleX, ELEMENT.MIN_WIDTH);
-          const newHeight = Math.max(origEl.height * effectiveScaleY, ELEMENT.MIN_HEIGHT);
-
-          return {
-            ...origEl,
-            x: newCx - newWidth / 2,
-            y: newCy - newHeight / 2,
-            width: newWidth,
-            height: newHeight,
-          };
-        });
-
-        // Update elements in state
-        state.elements = state.elements.map(el => {
-          const scaled = scaledElements.find(s => s.id === el.id);
-          return scaled || el;
-        });
-
-        // Clear caches for resized elements
-        state.dragStartElements.forEach(el => state.renderer.clearCache(el.id));
-        render();
-        break;
-
-      case 'rotate':
-        // Single element rotation - use canvas-adjusted position for calculation
-        const rotEl = state.dragStartElements[0];
-        const adjustedRotEl = getElementWithCanvasPos(rotEl);
-        let rotation = calculateRotation(adjustedRotEl, pos.x, pos.y);
-        if (!e.shiftKey) {
-          rotation = snapRotation(rotation);
-        }
-        modifyElement(rotEl.id, { rotation });
-        break;
-
-      case 'group-rotate':
-        // Multi-element rotation around group center - adjust bounds for canvas position
-        const adjustedBounds = getBoundsWithCanvasPos(state.dragStartBounds, state.dragStartElements[0]?.zone || 0);
-        const currentAngle = Math.atan2(pos.y - adjustedBounds.cy, pos.x - adjustedBounds.cx);
-        let angleDelta = ((currentAngle * 180) / Math.PI + 90) - state.dragStartAngle;
-        if (!e.shiftKey) {
-          angleDelta = snapRotation(angleDelta);
-        }
-        state.elements = rotateElements(
-          state.elements,
-          state.dragStartElements.map(e => e.id),
-          angleDelta,
-          { x: state.dragStartBounds.cx, y: state.dragStartBounds.cy }
-        );
-        // Update start angle for continuous drag
-        state.dragStartAngle = (currentAngle * 180) / Math.PI + 90;
-        state.dragStartElements = getSelectedElements().map(e => ({ ...e }));
-        render();
-        break;
-    }
-    return;
-  }
-
-  // Update cursor based on what's under mouse
-  const selectedElements = getSelectedElements();
-  const isMultiSelect = state.selectedIds.length > 1;
-
-  // Check group handles for multi-selection
-  if (isMultiSelect || (selectedElements.length === 1 && selectedElements[0].groupId)) {
-    const rawBounds = getMultiElementBounds(selectedElements);
-    const bounds = selectedElements.length > 0
-      ? getBoundsWithCanvasPos(rawBounds, selectedElements[0].zone || 0)
-      : rawBounds;
-    if (bounds) {
-      const handle = getGroupHandleAtPoint(pos.x, pos.y, bounds);
-      if (handle) {
-        canvas.style.cursor = getCursorForHandle(handle, 0);
-        return;
-      }
-    }
-  }
-
-  // Check single element handles
-  if (state.selectedIds.length === 1) {
-    const selected = selectedElements[0];
-    if (selected) {
-      const adjustedElement = getElementWithCanvasPos(selected);
-      const handle = getHandleAtPoint(pos.x, pos.y, adjustedElement);
-      if (handle) {
-        canvas.style.cursor = getCursorForHandle(handle, selected.rotation);
-        return;
-      }
-    }
-  }
-
-  const hovered = getElementAtCanvasPoint(pos.x, pos.y);
-  canvas.style.cursor = hovered ? 'move' : 'crosshair';
-}
-
-/**
- * Handle canvas mouse up
- */
-function handleCanvasMouseUp() {
-  const wasDragging = state.isDragging;
-  state.isDragging = false;
-  state.dragType = null;
-  state.dragHandle = null;
-  state.dragStartElements = null;
-  state.dragStartBounds = null;
-  state.dragStartAngle = 0;
-  // Clear alignment guides when drag ends
-  if (state.alignmentGuides.length > 0) {
-    state.alignmentGuides = [];
-    render();
-  }
-  // Auto-clone after drag/resize operations
-  if (wasDragging) {
-    autoCloneIfEnabled();
-    render();
-  }
 }
 
 // =============================================================================
@@ -4213,20 +4294,6 @@ function handleCanvasPointerCancel(e) {
 // =============================================================================
 
 /**
- * Convert touch to pointer-like event for iOS Safari
- */
-function touchToPointerEvent(touch, type) {
-  return {
-    pointerId: touch.identifier,
-    pointerType: 'touch',
-    clientX: touch.clientX,
-    clientY: touch.clientY,
-    preventDefault: () => {},
-    shiftKey: false,
-  };
-}
-
-/**
  * Handle touch start (iOS Safari fallback)
  */
 function handleCanvasTouchStart(e) {
@@ -4824,8 +4891,8 @@ function initPrinterModelPrompt() {
       $('#mobile-tape-width').value = state.tapeWidth;
     }
 
-    // Update label sizes based on printer type
-    updateLabelSizeDropdown(deviceName, model);
+    // Update label sizes based on printer type — printer just selected.
+    updateLabelSizeDropdown(deviceName, model, true);
     updateLengthAdjustButtons();
 
     // Close dialog
@@ -4851,37 +4918,52 @@ async function handleConnect(event) {
   }
 
   const btn = $('#connect-btn');
-  const originalText = btn.textContent;
+  const btnLabel = btn.querySelector('span');
 
   try {
     btn.disabled = true;
-    btn.textContent = 'Connecting...';
+    if (btnLabel) btnLabel.textContent = 'Connecting...';
     setStatus(showAllDevices ? 'Select your printer (showing all devices)' : 'Select printer with signal indicator (📶)');
 
+    // isBLE = generic ESC/POS BLE path. Niimbot is its own protocol/transport,
+    // so it intentionally stays false (skips generic-BLE-only code later).
     const isBLE = state.connectionType === 'ble';
 
-    if (isBLE) {
-      const selectedModel = $('#printer-model')?.value || state.printSettings.printerModel;
-      const selectedMake = $('#printer-make')?.value || 'auto';
-      const selectedDefinition = getPrinterDefinition(selectedModel);
-      const selectedProtocol = getPrinterProtocol('', selectedModel);
-      const usesNiimbot = selectedProtocol === 'niimbot' || selectedDefinition?.group === 'NIIMBOT' || selectedMake === 'NIIMBOT';
+    if (state.connectionType === 'usb') {
+      if (!USBTransport.isAvailable()) {
+        throw new Error('USB is not supported');
+      }
+      state.transport = USBTransport.getShared();
+    } else {
+      // The connection-type dropdown is the sole transport switch: 'niimbot' uses
+      // the Niimbot library, 'ble' is always generic ESC/POS BLE. This avoids the
+      // trap where a stale Print Settings make silently routed Bluetooth to Niimbot.
+      const usesNiimbot = state.connectionType === 'niimbot';
       const TransportClass = usesNiimbot ? NiimbotTransport : BLETransport;
       if (!TransportClass.isAvailable()) {
         throw new Error('Bluetooth is not supported');
       }
       state.transport = TransportClass.getShared();
-    } else {
-      if (!USBTransport.isAvailable()) {
-        throw new Error('USB is not supported');
-      }
-      state.transport = USBTransport.getShared();
     }
 
     await state.transport.connect({ showAllDevices });
 
     if (!state.transport.isConnected()) {
       throw new Error('Connection failed');
+    }
+
+    // Reflect dropped links (e.g. Niimbot heartbeat failure) in the UI —
+    // otherwise the dot stays green after the printer disconnects.
+    if ('onDisconnect' in state.transport) {
+      state.transport.onDisconnect = () => {
+        updateConnectionStatus(false);
+        setStatus('Disconnected');
+      };
+    }
+    // Niimbot: show handshake/heartbeat events in the status bar for diagnosis,
+    // and refresh the footer once firmware is captured on handshake.
+    if ('onLog' in state.transport) {
+      state.transport.onLog = (msg) => { setStatus(msg); updateFooterPrinterInfo(); };
     }
 
     updateConnectionStatus(true);
@@ -4925,8 +5007,9 @@ async function handleConnect(event) {
       $('#mobile-tape-width').value = state.tapeWidth;
     }
 
-    // Update label sizes based on printer type
-    updateLabelSizeDropdown(deviceName, effectiveModel);
+    // Update label sizes based on printer type — printer just selected on
+    // connect, so apply its default label size.
+    updateLabelSizeDropdown(deviceName, effectiveModel, true);
     updateLengthAdjustButtons();
 
     // Update printer info UI
@@ -4949,10 +5032,126 @@ async function handleConnect(event) {
   } catch (error) {
     logError(error, 'handleConnect');
     setStatus(error.message || 'Connection failed');
-    btn.textContent = originalText;
-    updateConnectionStatus(false);
+    updateConnectionStatus(false); // resets label to 'Connect'
   } finally {
     btn.disabled = false;
+  }
+}
+
+/**
+ * Tear down the active transport and reset the UI to disconnected.
+ */
+async function handleDisconnect() {
+  if (state.transport) {
+    try {
+      await state.transport.disconnect();
+    } catch (e) {
+      console.warn('Disconnect error:', e.message);
+    }
+    state.transport = null;
+  }
+  updateConnectionStatus(false);
+  setStatus('Disconnected');
+}
+
+/**
+ * Printer printable width in mm (print head width). 8 px/mm at 203 DPI.
+ */
+function printableWidthMm(printerWidthBytes, printerDpi = 203) {
+  const dotsPerMm = printerDpi / 25.4;
+  return (printerWidthBytes * 8) / dotsPerMm;
+}
+
+/**
+ * How many copies of the label fit on the sheet as a 2D grid.
+ * @returns {{cols:number, rows:number, count:number}} count<=1 means don't tile.
+ */
+function computeAutoFillGrid(labelMm, sheet, gapMm, maxSheetWidthMm = Infinity) {
+  const lw = labelMm.width, lh = labelMm.height;
+  const sw = Math.min(sheet.width, maxSheetWidthMm); // clamp to print head width
+  const sh = sheet.height;
+  const fit = (avail, cell) => (cell > 0 ? Math.max(0, Math.floor((avail + gapMm) / (cell + gapMm))) : 0);
+  const cols = fit(sw, lw);
+  const rows = fit(sh, lh);
+  return { cols, rows, count: cols * rows };
+}
+
+/**
+ * Build the Auto-Fill sheet-size dropdown from the same rect-size table the
+ * label-size dropdown uses for the current printer. Marks the default and adds
+ * a "Custom..." entry that reveals the W×H boxes. Selects `selectedSize`
+ * ("WxH" string) if it matches a preset, else falls back to Custom.
+ */
+function populateAutoFillSheetDropdown(selectedSize = '') {
+  const sel = $('#auto-fill-sheet-size');
+  if (!sel) return;
+  const sizes = state.availableRectSizes || M_SERIES_LABEL_SIZES;
+  const defKey = state.defaultLabelKey || '40x30';
+  sel.innerHTML = '';
+  for (const [key, size] of Object.entries(sizes)) {
+    const o = document.createElement('option');
+    o.value = `${size.width}x${size.height}`;
+    o.textContent = `${size.width}x${size.height}mm${key === defKey ? ' (Default)' : ''}`;
+    sel.appendChild(o);
+  }
+  const custom = document.createElement('option');
+  custom.value = 'custom';
+  custom.textContent = 'Custom...';
+  sel.appendChild(custom);
+
+  const hasPreset = [...sel.options].some((o) => o.value === selectedSize);
+  if (selectedSize && hasPreset) sel.value = selectedSize;
+  else if (selectedSize) sel.value = 'custom';
+  else if (sizes[defKey]) sel.value = `${sizes[defKey].width}x${sizes[defKey].height}`;
+}
+
+/**
+ * Refresh the Auto-Fill readout/hint and gate the enable checkbox.
+ * Disabled when the sheet isn't larger than the label, or in multi-label mode.
+ */
+function updateAutoFillReadout() {
+  const readout = $('#auto-fill-readout');
+  const enable = $('#auto-fill-enable');
+  if (!readout || !enable) return;
+
+  const label = state.labelSize;
+  const sheet = {
+    width: parseFloat($('#auto-fill-sheet-w')?.value) || 0,
+    height: parseFloat($('#auto-fill-sheet-h')?.value) || 0,
+  };
+  const gapMm = parseFloat($('#auto-fill-gap')?.value) || 0;
+
+  if (state.multiLabel?.enabled) {
+    enable.checked = false;
+    enable.disabled = true;
+    readout.textContent = 'Not available in multi-label mode.';
+    return;
+  }
+
+  // Clamp to the selected printer's head width so the readout matches what prints.
+  const model = $('#printer-model')?.value || state.printSettings.printerModel || 'auto';
+  const deviceName = state.transport?.getDeviceName?.() || '';
+
+  // Rotated printers (D-series/P12) rotate the raster 90°, so a tiled strip would
+  // print wider than the narrow head. Auto-Fill can't work on these.
+  if (isRotatedPrinter(deviceName, model)) {
+    enable.checked = false;
+    enable.disabled = true;
+    readout.textContent = 'Not available on this printer (rotated/narrow head).';
+    return;
+  }
+
+  const maxW = printableWidthMm(getPrinterWidthBytes(deviceName, model), getPrinterDpi(deviceName, model));
+
+  const grid = computeAutoFillGrid(label, sheet, gapMm, maxW);
+  if (grid.count > 1) {
+    enable.disabled = false;
+    readout.textContent = `Fits ${grid.cols} × ${grid.rows} = ${grid.count} labels on a ${sheet.width} × ${sheet.height} mm sheet.`;
+  } else {
+    enable.checked = false;
+    enable.disabled = true;
+    const dims = label.round ? `${label.width} mm round` : `${label.width} × ${label.height} mm`;
+    readout.textContent = `Sheet must be larger than the label (${dims}).`;
   }
 }
 
@@ -4998,9 +5197,22 @@ async function handlePrint() {
       ditherMode = 'threshold';
       console.log('TSPL printer: forcing threshold mode for crisp barcodes');
     }
-    const rasterData = isRotatedPrinter(deviceName, printerModel)
-      ? state.renderer.getRasterDataRaw(elementsToRender, ditherMode)
-      : state.renderer.getRasterData(elementsToRender, printerWidth, printerDpi, ditherMode, printerAlignment);
+    const rotated = isRotatedPrinter(deviceName, printerModel);
+    // Auto-Fill Page: tile the single design across a larger sheet (print-time only).
+    // Skip for rotated printers (D-series/P12): tiling builds a tall strip, but
+    // these rotate the raster 90°, so the strip becomes wider than the narrow
+    // print head and the printer feeds blank. Print a single label instead.
+    const af = state.printSettings.autoFill;
+    const grid = (af?.enabled && !state.multiLabel.enabled && !rotated)
+      ? computeAutoFillGrid(state.labelSize, { width: af.sheetWidth, height: af.sheetHeight }, af.gapMm,
+          printableWidthMm(printerWidth, printerDpi))
+      : null;
+    const rasterData = (grid && grid.count > 1)
+      ? state.renderer.getRasterDataTiled(elementsToRender, grid.cols, grid.rows, af.gapMm,
+          printerWidth, printerDpi, ditherMode, printerAlignment, rotated)
+      : (rotated
+          ? state.renderer.getRasterDataRaw(elementsToRender, ditherMode)
+          : state.renderer.getRasterData(elementsToRender, printerWidth, printerDpi, ditherMode, printerAlignment));
 
     // Print multiple copies if requested
     for (let copy = 1; copy <= copies; copy++) {
@@ -5038,6 +5250,25 @@ async function handlePrint() {
   }
 }
 
+// Canonical desktop URL shown to PWA users. Leave '' to reuse the current
+// origin (opens the same site in a normal browser tab). Set to your hosted
+// desktop URL if it differs from where the PWA is served.
+const DESKTOP_URL = '';
+
+/**
+ * Reveal the "Open Desktop Version" link only when running as an installed PWA.
+ */
+function setupDesktopVersionLink() {
+  const link = $('#desktop-version-link');
+  if (!link) return;
+  const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (!isStandalone) return;
+  link.href = DESKTOP_URL || (location.origin + location.pathname + '?source=desktop');
+  link.classList.remove('hidden');
+  link.classList.add('flex');
+}
+
 /**
  * Show info dialog
  */
@@ -5065,8 +5296,60 @@ function shouldShowInfoOnLoad() {
  */
 function showSaveDialog() {
   $('#save-dialog').classList.remove('hidden');
-  $('#save-name').value = '';
-  $('#save-name').focus();
+  const nameInput = $('#save-name');
+  nameInput.value = state.currentDesignName || '';
+  populateSaveExistingList();
+  updateSaveHint();
+  nameInput.focus();
+  nameInput.select();
+}
+
+/**
+ * Fill the Save dialog's "existing designs" list. Clicking a row drops its
+ * name into the input so the next Save overwrites it.
+ */
+function populateSaveExistingList() {
+  const wrap = $('#save-existing-wrap');
+  const listEl = $('#save-existing-list');
+  if (!wrap || !listEl) return;
+  const designs = listDesigns();
+  if (designs.length === 0) {
+    wrap.classList.add('hidden');
+    listEl.innerHTML = '';
+    return;
+  }
+  wrap.classList.remove('hidden');
+  listEl.innerHTML = designs.map((d) => `
+    <div class="save-existing-item flex items-center justify-between px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-50 last:border-b-0" data-name="${d.name}">
+      <span class="font-medium text-gray-800 truncate">${d.name}</span>
+      <span class="text-xs text-gray-400 ml-2 flex-shrink-0">${d.labelSize.width}x${d.labelSize.height}mm · ${d.elementCount} el</span>
+    </div>`).join('');
+  listEl.querySelectorAll('.save-existing-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      $('#save-name').value = item.dataset.name;
+      updateSaveHint();
+      $('#save-name').focus();
+    });
+  });
+}
+
+/**
+ * Update the Save dialog hint: warn when the typed name overwrites an existing design.
+ */
+function updateSaveHint() {
+  const hint = $('#save-hint');
+  if (!hint) return;
+  const name = $('#save-name').value.trim();
+  if (name && designExists(name)) {
+    hint.textContent = '⚠ Overwrites existing design.';
+    hint.className = 'text-xs text-amber-600 mb-3 min-h-[1rem]';
+  } else if (name) {
+    hint.textContent = 'Saves as a new design.';
+    hint.className = 'text-xs text-gray-400 mb-3 min-h-[1rem]';
+  } else {
+    hint.textContent = '';
+    hint.className = 'text-xs text-gray-400 mb-3 min-h-[1rem]';
+  }
 }
 
 /**
@@ -5079,7 +5362,7 @@ function hideSaveDialog() {
 /**
  * Save current design
  */
-function handleSave() {
+async function handleSave() {
   const nameValidation = validateDesignName($('#save-name').value);
   if (!nameValidation.valid) {
     setStatus(nameValidation.error);
@@ -5107,20 +5390,36 @@ function handleSave() {
       designData.multiLabel = { ...state.multiLabel };
     }
 
-    saveDesign(name, designData);
+    await saveDesign(name, designData);
     hideSaveDialog();
 
     // Update current design name and mobile display
     state.currentDesignName = name;
     updateMobileLabelName();
 
+    // Reflect the save on the active tab: relabel + clear dirty.
+    if (tabs[activeTabIndex]) {
+      tabs[activeTabIndex].currentDesignName = name;
+      tabs[activeTabIndex].dirty = false;
+    }
+    renderTabBar();
+    persistTabs();
+
     const templateInfo = state.templateData.length > 0
       ? ` (with ${state.templateData.length} data records)`
       : '';
     setStatus(`Design "${name}" saved${templateInfo}`);
+
+    // If closing a tab after save, do it now
+    if (_closeTabAfterSave !== null) {
+      const tabToClose = _closeTabAfterSave;
+      _closeTabAfterSave = null;
+      performCloseTab(tabToClose);
+    }
   } catch (e) {
     showToast(e.message, 'error');
     setStatus(e.message);
+    _closeTabAfterSave = null; // clear flag on error
   }
 }
 
@@ -5166,18 +5465,20 @@ function showLoadDialog() {
 
     // Bind click handlers
     listEl.querySelectorAll('.design-item').forEach(item => {
-      item.addEventListener('click', (e) => {
+      item.addEventListener('click', async (e) => {
         if (e.target.classList.contains('delete-design')) {
           e.stopPropagation();
           const name = e.target.dataset.name;
           if (confirm(`Delete "${name}"?`)) {
-            deleteDesign(name);
+            await deleteDesign(name);
             showLoadDialog(); // Refresh list
             setStatus(`Design "${name}" deleted`);
           }
           return;
         }
-        handleLoad(item.dataset.name);
+        // Open each loaded design in its own tab so current work isn't clobbered.
+        newTab();
+        void handleLoad(item.dataset.name);
       });
     });
   }
@@ -5487,8 +5788,8 @@ function getElementLabel(el) {
 /**
  * Load a design
  */
-function handleLoad(name) {
-  const design = loadDesign(name);
+async function handleLoad(name) {
+  const design = await loadDesign(name);
   if (!design) {
     setStatus('Design not found');
     return;
@@ -5509,24 +5810,7 @@ function handleLoad(name) {
   // Restore multi-label config if present
   if (design.multiLabel && design.multiLabel.enabled) {
     state.multiLabel = { ...design.multiLabel };
-    state.activeZone = 0;
-
-    // Update label size dropdown to show multi-label
-    const select = $('#label-size');
-    select.value = 'multi-label';
-    $('#custom-size').classList.add('hidden');
-
-    // Apply multi-label dimensions
-    state.renderer.setMultiLabelDimensions(
-      state.multiLabel.labelWidth,
-      state.multiLabel.labelHeight,
-      state.multiLabel.labelsAcross,
-      state.multiLabel.gapMm
-    );
-    state.renderer.setActiveZone(state.activeZone);
-    updateZoneToolbar();
   } else {
-    // Reset multi-label state
     state.multiLabel = {
       enabled: false,
       labelWidth: 10,
@@ -5535,42 +5819,20 @@ function handleLoad(name) {
       gapMm: 2,
       cloneMode: true,
     };
-    state.activeZone = 0;
-    state.renderer.disableMultiLabel();
-    $('#zone-toolbar').classList.add('hidden');
-
-    // Update label size dropdown
-    const sizeKey = findMatchingLabelSizeKey(state.labelSize);
-    const select = $('#label-size');
-    if (sizeKey && LABEL_SIZES[sizeKey]) {
-      select.value = sizeKey;
-      $('#custom-size').classList.add('hidden');
-    } else {
-      select.value = 'custom';
-      $('#custom-size').classList.remove('hidden');
-      $('#custom-width').value = state.labelSize.width;
-      $('#custom-height').value = state.labelSize.height;
-    }
-
-    applyCurrentLabelSize();
   }
-
-  syncLabelSizeUI();
-
-  state.renderer.clearCache();
-  resetHistory();
-  updatePrintSize();
-  updateToolbarState();
-  updatePropertiesPanel();
-
-  // Detect template fields from loaded elements
-  detectTemplateFields();
-
-  // Set current design name and update mobile display
+  state.activeZone = 0;
   state.currentDesignName = name;
-  updateMobileLabelName();
 
-  render();
+  resetHistory();        // a freshly loaded design starts with empty undo history
+  applyDesignToUI();     // shared UI re-sync (dropdowns, renderer, panels, render)
+
+  // Loaded design fills the active tab — relabel it and mark it clean.
+  if (tabs[activeTabIndex]) {
+    tabs[activeTabIndex].currentDesignName = name;
+    tabs[activeTabIndex].dirty = false;
+  }
+  renderTabBar();
+  persistTabs();
 
   hideLoadDialog();
 
@@ -5659,6 +5921,12 @@ function handleKeyDown(e) {
       hideSaveDialog();
     } else if ($('#load-dialog').classList.contains('hidden') === false) {
       hideLoadDialog();
+    } else if ($('#print-settings-dialog').classList.contains('hidden') === false) {
+      $('#print-settings-dialog').classList.add('hidden');
+    } else if ($('#printer-defs-dialog').classList.contains('hidden') === false) {
+      $('#printer-defs-dialog').classList.add('hidden');
+    } else if ($('#template-data-dialog').classList.contains('hidden') === false) {
+      $('#template-data-dialog').classList.add('hidden');
     } else {
       deselect();
     }
@@ -5980,19 +6248,8 @@ function initMobileUI() {
     state.renderer.setDitherPreview(state.ditherPreview);
 
     // Update both buttons
-    const desktopBtn = $('#dither-preview-btn');
-    const mobileBtn = $('#mobile-dither-preview-btn');
-    if (state.ditherPreview) {
-      desktopBtn?.classList.remove('bg-gray-100', 'text-gray-700');
-      desktopBtn?.classList.add('bg-blue-500', 'text-white');
-      mobileBtn?.classList.remove('bg-gray-100', 'text-gray-700');
-      mobileBtn?.classList.add('bg-blue-500', 'text-white');
-    } else {
-      desktopBtn?.classList.remove('bg-blue-500', 'text-white');
-      desktopBtn?.classList.add('bg-gray-100', 'text-gray-700');
-      mobileBtn?.classList.remove('bg-blue-500', 'text-white');
-      mobileBtn?.classList.add('bg-gray-100', 'text-gray-700');
-    }
+    $('#dither-preview-btn')?.classList.toggle('is-active', state.ditherPreview);
+    $('#mobile-dither-preview-btn')?.classList.toggle('is-active', state.ditherPreview);
     setStatus(state.ditherPreview ? 'Print preview: ON' : 'Print preview: OFF');
     render();
   });
@@ -6119,16 +6376,7 @@ function initMobileUI() {
   // Mobile disconnect button
   $('#mobile-disconnect-btn')?.addEventListener('click', async () => {
     closeMobileMenu();
-    if (state.transport) {
-      try {
-        await state.transport.disconnect();
-      } catch (e) {
-        console.warn('Disconnect error:', e.message);
-      }
-      state.transport = null;
-    }
-    updateConnectionStatus(false);
-    setStatus('Disconnected');
+    await handleDisconnect();
   });
 
   // Fixed toolbar - add element buttons
@@ -7242,6 +7490,9 @@ function init() {
 
   initInstantTooltips();
 
+  // Load saved theme
+  loadSavedTheme();
+
   // Configure error handlers
   configureErrorHandlers({
     setStatus: setStatus,
@@ -7313,13 +7564,12 @@ function init() {
     const usbOption = connType.querySelector('option[value="usb"]');
     if (usbOption) usbOption.remove();
   }
-  connType.addEventListener('change', (e) => {
+  connType.addEventListener('change', async (e) => {
     state.connectionType = e.target.value;
-    const btn = $('#connect-btn');
-    btn.textContent = 'Connect';
-    btn.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
-    btn.classList.add('bg-white', 'hover:bg-gray-50');
-    updateConnectionStatus(false);
+    // Drop any live connection when switching transport; updateConnectionStatus
+    // owns the button label/icon (don't set textContent — it wipes the svg).
+    if (state.transport?.isConnected()) await handleDisconnect();
+    else updateConnectionStatus(false);
     // Reset to M-series sizes when disconnecting/changing connection
     updateLabelSizeDropdown('', 'auto');
     updateLengthAdjustButtons();
@@ -7328,6 +7578,7 @@ function init() {
   // Info dialog
   $('#info-btn').addEventListener('click', showInfoDialog);
   $('#info-close').addEventListener('click', hideInfoDialog);
+  setupDesktopVersionLink();
   $('#info-get-started')?.addEventListener('click', hideInfoDialog);
   $('#info-dialog').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) hideInfoDialog();
@@ -7369,7 +7620,10 @@ function init() {
   $('#exit-multi-label-btn').addEventListener('click', exitMultiLabelMode);
 
   // Connect and print
-  $('#connect-btn').addEventListener('click', handleConnect);
+  $('#connect-btn').addEventListener('click', (e) => {
+    if (state.transport?.isConnected()) handleDisconnect();
+    else handleConnect(e);
+  });
   $('#print-btn').addEventListener('click', handlePrint);
 
   // Printer info popup
@@ -7405,16 +7659,7 @@ function init() {
 
   $('#printer-info-disconnect').addEventListener('click', async () => {
     printerInfoPopup.classList.add('hidden');
-    if (state.transport) {
-      try {
-        await state.transport.disconnect();
-      } catch (e) {
-        console.warn('Disconnect error:', e.message);
-      }
-      state.transport = null;
-    }
-    updateConnectionStatus(false);
-    setStatus('Disconnected');
+    await handleDisconnect();
   });
 
   // Close popup when clicking outside
@@ -7459,18 +7704,8 @@ function init() {
   // Dither preview toggle (shows exact print output for all elements)
   const ditherPreviewBtn = $('#dither-preview-btn');
   const updatePreviewButtonState = () => {
-    const mobileBtn = $('#mobile-dither-preview-btn');
-    if (state.ditherPreview) {
-      ditherPreviewBtn?.classList.remove('bg-gray-100', 'text-gray-700');
-      ditherPreviewBtn?.classList.add('bg-blue-500', 'text-white');
-      mobileBtn?.classList.remove('bg-gray-100', 'text-gray-700');
-      mobileBtn?.classList.add('bg-blue-500', 'text-white');
-    } else {
-      ditherPreviewBtn?.classList.remove('bg-blue-500', 'text-white');
-      ditherPreviewBtn?.classList.add('bg-gray-100', 'text-gray-700');
-      mobileBtn?.classList.remove('bg-blue-500', 'text-white');
-      mobileBtn?.classList.add('bg-gray-100', 'text-gray-700');
-    }
+    ditherPreviewBtn?.classList.toggle('is-active', state.ditherPreview);
+    $('#mobile-dither-preview-btn')?.classList.toggle('is-active', state.ditherPreview);
   };
 
   ditherPreviewBtn?.addEventListener('click', () => {
@@ -7493,11 +7728,56 @@ function init() {
     const make = definition?.group || 'auto';
     printerMakeSelect.value = make;
     populateModelsForMake(make, state.printSettings.printerModel || 'auto');
+    // Sync Auto-Fill inputs from state; auto-correct sheet dims if too small for label
+    const af = state.printSettings.autoFill;
+    const lw = state.labelSize.width, lh = state.labelSize.height;
+    const sheetW = (af.sheetWidth > lw) ? af.sheetWidth : Math.ceil(lw * 2);
+    const sheetH = (af.sheetHeight > lh) ? af.sheetHeight : Math.ceil(lh * 2);
+    if ($('#auto-fill-enable')) $('#auto-fill-enable').checked = !!af.enabled;
+    if ($('#auto-fill-sheet-w')) $('#auto-fill-sheet-w').value = sheetW;
+    if ($('#auto-fill-sheet-h')) $('#auto-fill-sheet-h').value = sheetH;
+    if ($('#auto-fill-gap')) $('#auto-fill-gap').value = af.gapMm;
+    populateAutoFillSheetDropdown(`${sheetW}x${sheetH}`);
+    $('#auto-fill-custom')?.classList.toggle('hidden', $('#auto-fill-sheet-size')?.value !== 'custom');
+    updateAutoFillReadout();
     printSettingsDialog.classList.remove('hidden');
   });
 
   printerMakeSelect.addEventListener('change', () => {
     populateModelsForMake(printerMakeSelect.value);
+    updateAutoFillReadout();
+  });
+  printerModelSelect.addEventListener('change', updateAutoFillReadout);
+
+  // Auto-Fill Page inputs — live readout/gating
+  ['#auto-fill-sheet-w', '#auto-fill-sheet-h', '#auto-fill-gap'].forEach((sel) => {
+    $(sel)?.addEventListener('input', updateAutoFillReadout);
+  });
+
+  // Enabling Auto-Fill pre-fills the sheet with the printer's default label size.
+  $('#auto-fill-enable')?.addEventListener('change', (e) => {
+    const def = state.defaultLabelSize;
+    if (e.target.checked && def) {
+      populateAutoFillSheetDropdown(`${def.width}x${def.height}`);
+      $('#auto-fill-sheet-w').value = def.width;
+      $('#auto-fill-sheet-h').value = def.height;
+      $('#auto-fill-custom')?.classList.toggle('hidden', $('#auto-fill-sheet-size')?.value !== 'custom');
+      updateAutoFillReadout();
+    }
+  });
+
+  // Sheet-size dropdown: preset → fill hidden W/H source-of-truth; Custom → show boxes.
+  $('#auto-fill-sheet-size')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    if (v === 'custom') {
+      $('#auto-fill-custom')?.classList.remove('hidden');
+    } else {
+      $('#auto-fill-custom')?.classList.add('hidden');
+      const [w, h] = v.split('x').map(Number);
+      $('#auto-fill-sheet-w').value = w;
+      $('#auto-fill-sheet-h').value = h;
+    }
+    updateAutoFillReadout();
   });
 
   $('#print-settings-close').addEventListener('click', () => {
@@ -7508,28 +7788,53 @@ function init() {
     densityValue.textContent = e.target.value;
   });
 
+  // Theme selector
+  const themeSelect = $('#theme-select');
+  if (themeSelect) {
+    const savedThemeName = localStorage.getItem('app_theme') || 'default';
+    themeSelect.value = savedThemeName;
+    themeSelect.addEventListener('change', (e) => {
+      applyTheme(e.target.value);
+    });
+  }
+
   $('#print-settings-reset').addEventListener('click', () => {
-    state.printSettings = { density: 6, copies: 1, feed: 32, printerModel: 'auto' };
+    state.printSettings = { density: 6, copies: 1, feed: 32, printerModel: 'auto',
+      autoFill: { enabled: false, sheetWidth: 50, sheetHeight: 80, gapMm: 0 } };
     densitySlider.value = 6;
     densityValue.textContent = '6';
     copiesInput.value = 1;
     feedSelect.value = 32;
     printerMakeSelect.value = 'auto';
     populateModelsForMake('auto');
+    if ($('#auto-fill-enable')) $('#auto-fill-enable').checked = false;
+    if ($('#auto-fill-sheet-w')) $('#auto-fill-sheet-w').value = 50;
+    if ($('#auto-fill-sheet-h')) $('#auto-fill-sheet-h').value = 80;
+    if ($('#auto-fill-gap')) $('#auto-fill-gap').value = 0;
+    updateAutoFillReadout();
   });
 
   $('#print-settings-save').addEventListener('click', () => {
+    const prevModel = state.printSettings.printerModel;
     state.printSettings.density = parseInt(densitySlider.value);
     state.printSettings.copies = Math.max(PRINT.MIN_COPIES, Math.min(PRINT.MAX_COPIES, parseInt(copiesInput.value) || PRINT.DEFAULT_COPIES));
     state.printSettings.feed = parseInt(feedSelect.value);
     state.printSettings.printerModel = printerModelSelect.value;
+    state.printSettings.autoFill = {
+      enabled: !!$('#auto-fill-enable')?.checked,
+      sheetWidth: parseFloat($('#auto-fill-sheet-w')?.value) || 0,
+      sheetHeight: parseFloat($('#auto-fill-sheet-h')?.value) || 0,
+      gapMm: parseFloat($('#auto-fill-gap')?.value) || 0,
+    };
 
     // Save to localStorage
     safeStorageSet('unified_ble_print_settings', safeJsonStringify(state.printSettings));
 
-    // Update UI based on printer model (for P12 length buttons and label sizes)
+    // Only re-apply the printer's default label size when the MODEL actually
+    // changed — otherwise saving any setting would nuke the user's custom size.
     const deviceName = state.transport?.getDeviceName?.() || '';
-    updateLabelSizeDropdown(deviceName, state.printSettings.printerModel);
+    const modelChanged = prevModel !== state.printSettings.printerModel;
+    updateLabelSizeDropdown(deviceName, state.printSettings.printerModel, modelChanged);
     updateLengthAdjustButtons();
 
     printSettingsDialog.classList.add('hidden');
@@ -7582,6 +7887,10 @@ function init() {
   });
 
   // Add element buttons
+  // Move tool — the default select/drag mode; click clears selection to return
+  // to a clean move state. (Adds are one-shot, so this is the only persistent tool.)
+  $('#move-tool-btn').addEventListener('click', deselect);
+
   $('#add-text').addEventListener('click', addTextElement);
   $('#add-image').addEventListener('click', () => $('#image-file-input').click());
   $('#image-file-input').addEventListener('change', (e) => {
@@ -7596,7 +7905,9 @@ function init() {
   // Shape dropdown toggle
   $('#add-shape-btn').addEventListener('click', (e) => {
     e.stopPropagation();
-    $('#shape-dropdown').classList.toggle('hidden');
+    const d = $('#shape-dropdown');
+    d.classList.toggle('hidden');
+    if (!d.classList.contains('hidden')) openPopoverUnder(d, $('#add-shape-btn'));
   });
 
   // Shape options
@@ -7672,13 +7983,33 @@ function init() {
   // Save/Load
   $('#save-btn').addEventListener('click', showSaveDialog);
   $('#save-cancel').addEventListener('click', hideSaveDialog);
-  $('#save-confirm').addEventListener('click', handleSave);
+  $('#save-confirm').addEventListener('click', () => { void handleSave(); });
   $('#save-name').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleSave();
+    if (e.key === 'Enter') void handleSave();
   });
+  $('#save-name').addEventListener('input', updateSaveHint);
 
   $('#load-btn').addEventListener('click', showLoadDialog);
   $('#load-cancel').addEventListener('click', hideLoadDialog);
+
+  // Close tab confirmation dialog
+  $('#close-tab-cancel').addEventListener('click', () => {
+    $('#close-tab-dialog').classList.add('hidden');
+    _closeTabIndex = null;
+  });
+  $('#close-tab-discard').addEventListener('click', () => {
+    $('#close-tab-dialog').classList.add('hidden');
+    performCloseTab(_closeTabIndex);
+    _closeTabIndex = null;
+  });
+  $('#close-tab-save-first').addEventListener('click', () => {
+    $('#close-tab-dialog').classList.add('hidden');
+    // Set flag to close tab after save, then open save dialog
+    _closeTabAfterSave = _closeTabIndex;
+    state.currentDesignName = tabs[_closeTabIndex].currentDesignName || null;
+    showSaveDialog();
+    _closeTabIndex = null;
+  });
 
   // Import from file
   $('#import-file-btn').addEventListener('click', () => $('#import-file-input').click());
@@ -7693,7 +8024,19 @@ function init() {
   $('#export-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     $('#elements-dropdown').classList.add('hidden'); // Close other dropdown
-    $('#export-dropdown').classList.toggle('hidden');
+    const dropdown = $('#export-dropdown');
+    dropdown.classList.toggle('hidden');
+
+    // Position the dropdown below the button
+    if (!dropdown.classList.contains('hidden')) {
+      // ponytail: reparent to body so z-index escapes the header's
+      // backdrop-filter stacking context (else panels cover it)
+      if (dropdown.parentElement !== document.body) document.body.appendChild(dropdown);
+      const btn = $('#export-btn');
+      const btnRect = btn.getBoundingClientRect();
+      dropdown.style.left = btnRect.left + 'px';
+      dropdown.style.top = (btnRect.bottom + 8) + 'px'; // 8px gap below button
+    }
   });
 
   // Export options
@@ -7723,7 +8066,9 @@ function init() {
     e.stopPropagation();
     $('#export-dropdown').classList.add('hidden'); // Close other dropdown
     updateElementsList();
-    $('#elements-dropdown').classList.toggle('hidden');
+    const d = $('#elements-dropdown');
+    d.classList.toggle('hidden');
+    if (!d.classList.contains('hidden')) openPopoverUnder(d, $('#elements-btn'));
   });
 
   // Close dropdowns when clicking outside
@@ -7970,6 +8315,16 @@ function init() {
     if (element && element.type === 'image') {
       saveHistory();
       modifyElement(element.id, { dither: e.target.value });
+    }
+  });
+
+  // Black & white toggle
+  $('#prop-image-bw').addEventListener('click', () => {
+    const element = getSelected();
+    if (element && element.type === 'image') {
+      saveHistory();
+      modifyElement(element.id, { grayscale: !element.grayscale });
+      updatePropertiesPanel();
     }
   });
 
@@ -8355,6 +8710,9 @@ function init() {
   // Detect template fields on load
   detectTemplateFields();
 
+  // Build the multi-tab workspace (restore saved tabs or seed one from current state)
+  initTabs();
+
   // Show info dialog on first visit
   if (state.canPrint && shouldShowInfoOnLoad()) {
     showInfoDialog();
@@ -8368,6 +8726,8 @@ function init() {
 
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
+    // Flush any pending tab persistence so reload restores the latest state
+    flushPersistTabs();
     // Destroy renderer to clean up caches
     if (state.renderer) {
       state.renderer.destroy();
@@ -8378,7 +8738,7 @@ function init() {
     }
   });
 
-  console.log('BLE Label Hub initialized');
+  console.log('Unified BLE Web Print initialized');
 }
 
 // Initialize when DOM is ready
