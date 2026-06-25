@@ -174,30 +174,6 @@ export function sendToBack(elements, id) {
 }
 
 /**
- * Move element up one level in z-order
- */
-export function moveUp(elements, id) {
-  const idx = elements.findIndex(e => e.id === id);
-  if (idx < 0 || idx >= elements.length - 1) return elements;
-
-  const result = [...elements];
-  [result[idx], result[idx + 1]] = [result[idx + 1], result[idx]];
-  return result;
-}
-
-/**
- * Move element down one level in z-order
- */
-export function moveDown(elements, id) {
-  const idx = elements.findIndex(e => e.id === id);
-  if (idx <= 0) return elements;
-
-  const result = [...elements];
-  [result[idx], result[idx - 1]] = [result[idx - 1], result[idx]];
-  return result;
-}
-
-/**
  * Get element bounds (axis-aligned bounding box considering rotation)
  */
 export function getElementBounds(element) {
@@ -311,16 +287,6 @@ export function constrainSize(element) {
 }
 
 /**
- * Clone element with new ID
- */
-export function cloneElement(element) {
-  return {
-    ...element,
-    id: generateId(),
-  };
-}
-
-/**
  * Generate unique group ID
  */
 function generateGroupId() {
@@ -372,15 +338,6 @@ export function getElementGroupId(elements, elementId) {
 }
 
 /**
- * Get all elements in the same group as the given element
- */
-export function getGroupMembersForElement(elements, elementId) {
-  const groupId = getElementGroupId(elements, elementId);
-  if (!groupId) return [];
-  return getGroupMembers(elements, groupId);
-}
-
-/**
  * Get bounding box that encompasses multiple elements
  * @param {Array} elementsToMeasure - Elements to measure
  * @returns {Object} { x, y, width, height, cx, cy }
@@ -413,17 +370,6 @@ export function getMultiElementBounds(elementsToMeasure) {
     cx: minX + width / 2,
     cy: minY + height / 2,
   };
-}
-
-/**
- * Get all unique group IDs from elements
- */
-export function getAllGroupIds(elements) {
-  const groupIds = new Set();
-  elements.forEach(el => {
-    if (el.groupId) groupIds.add(el.groupId);
-  });
-  return Array.from(groupIds);
 }
 
 /**

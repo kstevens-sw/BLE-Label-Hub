@@ -200,10 +200,11 @@
 
     <section id="getting-started">
       <h2>Getting started</h2>
-      <p>Open the app in Chrome, Edge, or another Chromium-based browser on a desktop or Android device. Web Bluetooth is the primary connection path for BLE printers. Some printers can also be used over USB when supported by the app.</p>
+      <p>Open the app in Chrome, Edge, or another Chromium-based browser on a desktop or Android device. Web Bluetooth is the primary connection path for BLE printers. Some printers can also be used over USB when supported by the app. iOS Safari does not support Web Bluetooth.</p>
       <div class="callout">
-        <strong>Fast path:</strong> choose your printer model in Print Settings, click Connect, then start designing.
+        <strong>Fast path:</strong> set the connection-type dropdown to match your printer (<strong>Bluetooth</strong>, <strong>Niimbot</strong>, or <strong>USB</strong>), click Connect, then start designing.
       </div>
+      <p class="muted"><strong>Install on mobile:</strong> the app is a Progressive Web App — open it in Chrome on Android and choose "Install app" / "Add to Home screen" to run it like a native app, including offline. When installed, the About dialog shows an "Open Desktop Version" link.</p>
       <div class="grid">
         <div class="card">
           <h3>1. Connect</h3>
@@ -229,6 +230,7 @@
         <li><strong>Right panel</strong> for the selected element’s properties and printer options.</li>
       </ul>
       <p class="muted">Drag elements on the canvas to reposition them. Use the handles to resize or rotate supported items.</p>
+      <p>The <strong>Move tool</strong> (cursor icon) at the left of the toolbar is the default select-and-drag mode; click it any time to clear the current selection. The <strong>Connect</strong> button doubles as Disconnect — once connected it shows "Disconnect", and clicking it drops the printer.</p>
     </section>
 
     <section id="elements">
@@ -249,12 +251,22 @@
       <div class="callout">
         For text fields, you can also insert template fields and expressions so the same design can be reused with different data.
       </div>
+      <p><strong>Images:</strong> the image properties include brightness, contrast, dithering, and a <strong>Black &amp; White</strong> button — use it to convert a pasted color image to monochrome so it looks right before printing. Thermal printers always print in black and white, and the dither preview shows the exact output.</p>
       <p>Use the keyboard shortcuts shown in the app for undo, redo, duplicate, group, and nudge actions.</p>
     </section>
 
     <section id="printer-setup">
       <h2>Printer setup</h2>
-      <p>Choose the model that matches your printer in Print Settings. The app uses that profile to select width, DPI, and protocol behavior.</p>
+      <div class="callout">
+        <strong>Pick the connection type first.</strong> The dropdown next to the Connect button (<strong>Bluetooth</strong> / <strong>Niimbot</strong> / <strong>USB</strong>) decides how the app talks to the printer, and it is the only thing that controls this — Print Settings does not change it.
+        <ul class="step-list">
+          <li><strong>Niimbot</strong> — for NIIMBOT printers (B1, B21, D11, etc.). Uses the Niimbot protocol library.</li>
+          <li><strong>Bluetooth</strong> — for everything else: Jadens JD-468BT, Phomemo, M-series, D-series, P12/A30, TSPL shipping printers.</li>
+          <li><strong>USB</strong> — for printers connected over a USB cable, where supported.</li>
+        </ul>
+        Choosing the wrong one is the most common reason a printer pairs in the picker but then fails to connect or print. A Niimbot on "Bluetooth" (or a Jadens on "Niimbot") will not work.
+      </div>
+      <p>Choose the model that matches your printer in Print Settings. The app uses that profile to select width, DPI, and protocol behavior. The correct <strong>default label size</strong> is applied automatically when you connect or pick a printer (for example, the Niimbot B1 defaults to 50×30&nbsp;mm). The connected printer's make, model, and firmware are shown in the bottom-right of the footer.</p>
       <table>
         <thead>
           <tr>
@@ -314,7 +326,19 @@
       <div class="grid">
         <div class="card">
           <h3>The printer does not appear</h3>
-          <p class="muted">Confirm the browser supports Web Bluetooth, keep the printer awake, and verify the model is a BLE-capable device.</p>
+          <p class="muted">Confirm the browser supports Web Bluetooth, keep the printer awake, and verify the model is a BLE-capable device. The picker is filtered to known printer name prefixes; Shift+click Connect to show all Bluetooth devices.</p>
+        </div>
+        <div class="card">
+          <h3>It pairs but will not connect</h3>
+          <p class="muted">Bluetooth allows only one connection at a time. If the printer is still linked to its phone app or another device, the browser cannot connect even when you are right next to it. Close that app, toggle Bluetooth off and on, power-cycle the printer, and retry.</p>
+        </div>
+        <div class="card">
+          <h3>Connects but the printer light stays red</h3>
+          <p class="muted">The green dot in the app means the Bluetooth link is up. A Niimbot printer also needs its own handshake to finish — watch the status bar for "Printer handshake OK". If it stalls or the link drops, the printer is usually still held by another device.</p>
+        </div>
+        <div class="card">
+          <h3>Wrong connection type</h3>
+          <p class="muted">If you see "Not a Niimbot printer" or "no suitable characteristic", the connection dropdown is set to the wrong mode. Use <strong>Niimbot</strong> for Niimbot printers and <strong>Bluetooth</strong> for the Jadens and everything else, then reconnect.</p>
         </div>
         <div class="card">
           <h3>Print output is offset</h3>
@@ -322,7 +346,7 @@
         </div>
         <div class="card">
           <h3>Nothing prints</h3>
-          <p class="muted">Reconnect, verify the selected printer model, and retry with a simple text label first.</p>
+          <p class="muted">Confirm the connection type matches the printer (see above), reconnect, verify the selected printer model, and retry with a simple text label first.</p>
         </div>
       </div>
     </section>

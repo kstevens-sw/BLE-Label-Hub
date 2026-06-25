@@ -1136,10 +1136,11 @@ export class CanvasRenderer {
         return;
       }
 
-      // Normal rendering: Apply brightness and contrast filters if set
+      // Normal rendering: Apply brightness, contrast, and B&W filters if set
       const brightness = element.brightness || 0;
       const contrast = element.contrast || 0;
-      const hasFilters = brightness !== 0 || contrast !== 0;
+      const grayscale = !!element.grayscale;
+      const hasFilters = brightness !== 0 || contrast !== 0 || grayscale;
 
       if (hasFilters) {
         // Convert from -100..100 to filter values
@@ -1147,7 +1148,9 @@ export class CanvasRenderer {
         const brightnessValue = 1 + (brightness / 100);
         // Contrast: 0 = 100% (no change), -100 = 0%, +100 = 200%
         const contrastValue = 1 + (contrast / 100);
-        this.ctx.filter = `brightness(${brightnessValue}) contrast(${contrastValue})`;
+        const parts = [`brightness(${brightnessValue})`, `contrast(${contrastValue})`];
+        if (grayscale) parts.push('grayscale(1)');
+        this.ctx.filter = parts.join(' ');
       }
 
       this.ctx.drawImage(img, -width / 2, -height / 2, width, height);
@@ -2257,21 +2260,26 @@ export class CanvasRenderer {
    * @param {'left' | 'center' | 'right'} alignment - How to align label within printer width (default: 'center')
    */
   getRasterData(elements, printerWidthBytes = DEFAULT_PRINTER_WIDTH_BYTES, printerDpi = 203, ditherMode = 'auto', alignment = 'center') {
-    let { pixels, width, height } = this._renderToPixels(elements);
+    const { pixels, width, height } = this._renderToPixels(elements);
+    return this._finalizeRaster(pixels, width, height, printerWidthBytes, printerDpi, alignment, ditherMode);
+  }
 
+  /**
+   * Convert a rendered pixel buffer to a padded/aligned 1-bit raster, applying
+   * the high-DPI upscale when needed. Shared by getRasterData and getRasterDataTiled.
+   */
+  _finalizeRaster(pixels, width, height, printerWidthBytes, printerDpi, alignment, ditherMode) {
     // Scale up for higher DPI printers (e.g., M02 Pro at 300 DPI)
     if (printerDpi > 203) {
       const scale = printerDpi / 203;
       const scaledWidth = Math.round(width * scale);
       const scaledHeight = Math.round(height * scale);
 
-      // Create scaled canvas
       const scaledCanvas = document.createElement('canvas');
       scaledCanvas.width = scaledWidth;
       scaledCanvas.height = scaledHeight;
       const scaledCtx = scaledCanvas.getContext('2d');
 
-      // Create source canvas from pixels
       const srcCanvas = document.createElement('canvas');
       srcCanvas.width = width;
       srcCanvas.height = height;
@@ -2280,35 +2288,19 @@ export class CanvasRenderer {
       srcImageData.data.set(pixels);
       srcCtx.putImageData(srcImageData, 0, 0);
 
-      // Scale up with smooth interpolation
       scaledCtx.imageSmoothingEnabled = true;
       scaledCtx.imageSmoothingQuality = 'high';
       scaledCtx.drawImage(srcCanvas, 0, 0, scaledWidth, scaledHeight);
 
-      // Get scaled pixels
       const scaledImageData = scaledCtx.getImageData(0, 0, scaledWidth, scaledHeight);
-      pixels = scaledImageData.data;
-      width = scaledWidth;
-      height = scaledHeight;
-
       // For high-DPI printers, use the specified printer width but left-align
       // (no centering) to avoid white gaps at the start edge
-      const data = this._pixelsToRaster(pixels, width, height, printerWidthBytes, 'left', ditherMode);
-
-      return {
-        data,
-        widthBytes: printerWidthBytes,
-        heightLines: height,
-      };
+      const data = this._pixelsToRaster(scaledImageData.data, scaledWidth, scaledHeight, printerWidthBytes, 'left', ditherMode);
+      return { data, widthBytes: printerWidthBytes, heightLines: scaledHeight };
     }
 
     const data = this._pixelsToRaster(pixels, width, height, printerWidthBytes, alignment, ditherMode);
-
-    return {
-      data,
-      widthBytes: printerWidthBytes,
-      heightLines: height,
-    };
+    return { data, widthBytes: printerWidthBytes, heightLines: height };
   }
 
   /**
@@ -2330,6 +2322,67 @@ export class CanvasRenderer {
       widthBytes,
       heightLines: height,
     };
+  }
+
+  /**
+   * Render the current single-label design repeated into a cols×rows grid on one
+   * big canvas (print-time "Auto-Fill Page" tiling; does not touch design state).
+   * Mirrors the zone-offset trick in _renderToPixels but as a 2D grid.
+   * @returns {{pixels: Uint8ClampedArray, width: number, height: number}}
+   */
+  _renderTiledToPixels(elements, cols, rows, gapPx) {
+    const cellW = this.labelWidth;
+    const cellH = this.labelHeight;
+    const totalW = cols * cellW + (cols - 1) * gapPx;
+    const totalH = rows * cellH + (rows - 1) * gapPx;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = totalW;
+    tempCanvas.height = totalH;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.fillStyle = 'white';
+    tempCtx.fillRect(0, 0, totalW, totalH);
+
+    const originalCtx = this.ctx;
+    this.ctx = tempCtx;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const offX = c * (cellW + gapPx);
+        const offY = r * (cellH + gapPx);
+        // Per-cell circular clip for round labels
+        if (this.isRound) {
+          tempCtx.save();
+          tempCtx.beginPath();
+          const radius = Math.min(cellW, cellH) / 2;
+          tempCtx.arc(offX + cellW / 2, offY + cellH / 2, radius, 0, Math.PI * 2);
+          tempCtx.clip();
+        }
+        for (const element of elements) {
+          this.renderElement({ ...element, x: element.x + offX, y: element.y + offY });
+        }
+        if (this.isRound) tempCtx.restore();
+      }
+    }
+    this.ctx = originalCtx;
+
+    const imageData = tempCtx.getImageData(0, 0, totalW, totalH);
+    return { pixels: imageData.data, width: totalW, height: totalH };
+  }
+
+  /**
+   * Build a 1-bit raster of the design tiled into a cols×rows grid.
+   * @param {boolean} raw - rotated printers (D-series/P12): no padding/centering,
+   *   widthBytes derived from the tiled width (printer.js rotates downstream).
+   */
+  getRasterDataTiled(elements, cols, rows, gapMm, printerWidthBytes = DEFAULT_PRINTER_WIDTH_BYTES, printerDpi = 203, ditherMode = 'auto', alignment = 'center', raw = false) {
+    const gapPx = Math.round(gapMm * PX_PER_MM);
+    const { pixels, width, height } = this._renderTiledToPixels(elements, cols, rows, gapPx);
+    if (raw) {
+      const widthBytes = Math.ceil(width / 8);
+      const data = this._pixelsToRaster(pixels, width, height, widthBytes, false, ditherMode);
+      return { data, widthBytes, heightLines: height };
+    }
+    return this._finalizeRaster(pixels, width, height, printerWidthBytes, printerDpi, alignment, ditherMode);
   }
 
   /**

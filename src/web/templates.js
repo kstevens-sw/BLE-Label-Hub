@@ -93,20 +93,6 @@ function substituteString(str, record) {
   });
 }
 
-/**
- * Validate that a record has all required fields
- * @param {Array} fields - Array of required field names
- * @param {Object} record - Record to validate
- * @returns {Object} - { valid: boolean, missing: Array }
- */
-export function validateRecord(fields, record) {
-  const missing = fields.filter(f => !record.hasOwnProperty(f) || record[f] === '');
-  return {
-    valid: missing.length === 0,
-    missing,
-  };
-}
-
 // Maximum records to prevent browser memory issues
 const MAX_CSV_RECORDS = 10000;
 
@@ -222,41 +208,6 @@ function parseCSVLine(line) {
 }
 
 /**
- * Convert records to CSV string
- * @param {Array} headers - Array of field names
- * @param {Array} records - Array of record objects
- * @returns {string} - CSV content
- */
-export function toCSV(headers, records) {
-  const lines = [];
-
-  // Header row
-  lines.push(headers.map(h => escapeCSVValue(h)).join(','));
-
-  // Data rows
-  for (const record of records) {
-    const values = headers.map(h => escapeCSVValue(record[h] || ''));
-    lines.push(values.join(','));
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Escape a value for CSV output
- * @param {string} value - Value to escape
- * @returns {string} - Escaped value
- */
-function escapeCSVValue(value) {
-  const str = String(value);
-  // Quote if contains comma, quote, or newline
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return '"' + str.replace(/"/g, '""') + '"';
-  }
-  return str;
-}
-
-/**
  * Create an empty record with all fields
  * @param {Array} fields - Array of field names
  * @returns {Object} - Record with empty values
@@ -301,24 +252,6 @@ export function substituteFieldsByZone(elements, records, numZones) {
 
     return clone;
   });
-}
-
-/**
- * Generate sample data for preview/testing
- * @param {Array} fields - Array of field names
- * @param {number} count - Number of records to generate
- * @returns {Array} - Array of sample records
- */
-export function generateSampleData(fields, count = 3) {
-  const records = [];
-  for (let i = 1; i <= count; i++) {
-    const record = {};
-    for (const field of fields) {
-      record[field] = `${field} ${i}`;
-    }
-    records.push(record);
-  }
-  return records;
 }
 
 // =============================================================================

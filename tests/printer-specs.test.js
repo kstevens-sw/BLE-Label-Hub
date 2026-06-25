@@ -1,13 +1,5 @@
-/**
- * Unit tests for printer hardware specifications.
- *
- * These tests verify critical printer head-width specs that guard against
- * regressions. D-series/P12/A30 printers rotate the raster 90°, so the
- * rotated output width = design height in pixels. The printhead width must
- * accommodate this, or the printer silently feeds blank labels.
- *
- * Run: node tests/printer-specs.test.js
- */
+// Unit tests for printer hardware specs — guard against head-width regressions.
+// Run: node tests/printer-specs.test.js
 
 const assert = require('assert');
 const fs = require('fs');

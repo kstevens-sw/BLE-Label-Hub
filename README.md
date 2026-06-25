@@ -1,147 +1,139 @@
 # BLE Label Hub
 
-A browser-based label designer adapted for the Jadens JD-468BT thermal printer. It can connect through Web Bluetooth when the printer exposes BLE, or through WebUSB when the printer is connected by USB.
+A browser-based thermal label designer and driver. Design labels with text, barcodes, QR
+codes, images, and shapes, then print directly to BLE/USB thermal printers — no app, no drivers.
+Runs entirely client-side. Originally built for the **Jadens JD-468BT**, now supports Niimbot,
+Phomemo, and many M-/D-series, P12/A30 tape, and TSPL shipping printers.
 
 <p>
   <img src="screenshot.png" alt="BLE Label Hub" width="600" />
   <img src="screenshot-mobile.png" alt="Mobile UI" width="200" />
 </p>
 
-## Quick Start
-
-1. Start the local server below and open it in Chrome or Edge.
-2. In Print Settings, choose **Jadens JD-468BT**.
-3. Click **Connect** to pair through Bluetooth, or choose **USB** if the printer does not appear.
-4. Design your label and click **Print**.
-
-To run locally (Web Bluetooth requires HTTPS or localhost):
+## Quick start
 
 ```bash
 npm start
-# Open http://localhost:3001 in Chrome
+# serves src/web on http://localhost:3001 — open in Chrome or Edge
 ```
 
-**Requires:** Chrome, Edge, or another Chromium-based browser. Web Bluetooth is not available in Firefox or Safari. Android Chrome is supported; iOS is not.
+1. Open the app in Chrome/Edge (desktop or Android).
+2. Set the **connection-type dropdown** (next to Connect) to match your printer:
+   **Bluetooth**, **Niimbot**, or **USB** — see [Connecting](#connecting).
+3. Click **Connect** and pick your printer from the browser's device picker.
+4. Design your label and click **Print**.
 
-The JD-468BT model name indicates Bluetooth support, but some hardware revisions may use Bluetooth Classic rather than BLE. Web Bluetooth only supports BLE. If the printer is absent from Chrome's device picker, connect it by USB or capture its Bluetooth services with the Jadens mobile app so a revision-specific transport can be added.
+**Requires** a Chromium browser (Chrome, Edge, Opera). Web Bluetooth is **not** available in
+Firefox or Safari, and **not** on iOS. Android Chrome is supported. Production hosting needs
+HTTPS; `localhost` works for development.
+
+## Install as a mobile app (PWA)
+
+BLE Label Hub is a Progressive Web App. On Android Chrome, open the site and choose
+**Install app** / **Add to Home screen** to run it full-screen and offline, like a native app.
+When installed, the About dialog (ℹ️) shows an **Open Desktop Version** link.
+
+## Connecting
+
+The **connection-type dropdown is the single switch** that decides how the app talks to the
+printer. Print Settings does *not* change it.
+
+| Dropdown | Use for | Protocol |
+|----------|---------|----------|
+| **Bluetooth** | Jadens JD-468BT, Phomemo, M-series, D-series, P12/A30, TSPL shipping | ESC/POS / TSPL over BLE |
+| **Niimbot** | NIIMBOT printers (B1, B21, D11, D110, B18, …) | NiimBlueLib protocol |
+| **USB** | Printers connected by USB cable, where supported | WebUSB |
+
+Picking the wrong mode is the most common failure: a Niimbot on "Bluetooth" (or a Jadens on
+"Niimbot") will pair in the picker but fail to connect/print. The **Connect** button becomes
+**Disconnect** once connected. The footer shows the connected printer's make, model, and firmware.
+
+> **Bluetooth allows one connection at a time.** If a printer won't connect even when you're
+> next to it, it's usually still linked to its phone app or another device — close that, toggle
+> Bluetooth off/on, power-cycle the printer, and retry.
 
 ## Features
 
-**Design Elements** - Text (multiple fonts including local system fonts, sizes, styles, alignment, background colors), images with scale/aspect lock, barcodes (Code128, EAN-13, UPC-A, Code39), QR codes, and shapes (rectangle, ellipse, triangle, line) with solid, dithered grayscale, and stroke fills.
+- **Design elements** — Text (system fonts, sizes, styles, alignment, background), images
+  (scale, aspect lock), barcodes (Code128, EAN-13, UPC-A, Code39), QR codes, and shapes
+  (rectangle, ellipse, triangle, line) with solid, dithered-grayscale, and stroke fills.
+- **Editing** — Drag/resize/rotate, multi-select (Shift+click), grouping (Ctrl/Cmd+G),
+  undo/redo, keyboard nudge, layer order, clipboard image paste (Ctrl/Cmd+V), Move tool.
+- **Image tuning for thermal** — Brightness, contrast, a one-click **Black & White** toggle for
+  pasted color images, and selectable dithering (Floyd-Steinberg, Atkinson, ordered, threshold).
+- **Label sizes** — Per-printer presets, round labels, custom dimensions, and multi-label rolls.
+  The correct **default size auto-applies** when you connect or pick a printer (e.g. Niimbot B1 → 50×30 mm).
+- **Templates & batch printing** — `{{FieldName}}` placeholders, CSV import, preview grid, and
+  batch printing with progress.
+- **Instant expressions** — Print-time values via `[[date]]`, `[[time]]`, `[[datetime]]`, or
+  `[[date|MM/DD/YYYY]]`, in text, barcodes, and QR codes.
+- **Print preview** — Toggle dither preview to see the exact monochrome thermal output.
+- **Custom printer definitions** — Add/override width, DPI, density, and BLE name patterns.
+- **PWA** — Installable and offline-capable on mobile.
 
-**Editing** - Drag to move, corner/edge resize handles, rotation. Multi-select (Shift+click), grouping (Ctrl/Cmd+G), undo/redo, keyboard nudge, layer ordering, clipboard image paste (Ctrl/Cmd+V).
+## How it works
 
-**Label Sizes** - Preset sizes for each printer type, round labels, custom dimensions. Auto-switches based on connected printer. Multi-label rolls with clone or individual zone modes.
+Designs are laid out on an HTML Canvas, rendered at the printer's resolution, converted to
+grayscale, dithered, and packed to a **1-bit bitmap**, then streamed to the printer. Thermal
+printers are raster devices, so all output is monochrome regardless of on-screen color. Niimbot
+printers use their own protocol (via NiimBlueLib); everything else uses ESC/POS or TSPL over BLE.
 
-**Templates & Batch Printing** - Variable fields with `{{FieldName}}` syntax, CSV import, preview grid, and batch printing with progress tracking.
-
-**Instant Expressions** - Dynamic values at print time using `[[expression]]` syntax: `[[date]]`, `[[time]]`, `[[datetime]]`, or custom formats like `[[date|MM/DD/YYYY]]`. Works in text, barcodes, and QR codes.
-
-**Print Preview** - Toggle dither preview to see exact thermal print output before printing.
-
-**Export** - Save/load designs to browser storage, export/import as JSON, export to PDF or PNG.
-
-**Mobile** - Full-featured touch UI with pinch-to-zoom, two-finger pan, slide-up property panels, and complete feature parity with desktop.
-
-**Printer Status** - Live battery level, paper status, firmware version, and serial number with auto-query on connect.
-
-## Supported Printers
-
-| Model | Width | Notes |
-|-------|-------|-------|
-| P12 / P12 Pro | 12mm | Continuous tape label maker |
-| A30 | 12-15mm | Continuous tape, faster print speed |
-| M02 / M02S / M02X | 48mm (384px) | Mini pocket printers, continuous paper |
-| M02 Pro | 53mm (626px) | 300 DPI high-resolution mini printer |
-| M03 | 53mm (432px) | Mini sticker printer |
-| T02 | 48mm (384px) | Mini sticker printer |
-| M04S / M04AS | 53/80/110mm | 300 DPI multi-width printer (select paper size in settings) |
-| M110 / M120 | 48mm (384px) | Narrow label makers |
-| M200 / M250 | 75mm (608px) | Mid-size labels |
-| M220 / M221 | 72mm (576px) | Wide labels |
-| M260 | 72mm (576px) | Wide label maker |
-| D30 / D35 / D50 / D110 | 12-15mm | Smart mini label makers (rotated protocol) |
-| Q30 / Q30S | 12-15mm | Similar to D30 |
-| PM-241 / PM-241-BT | 102mm (4") | Shipping labels, USB only (TSPL protocol) |
-| Jadens JD-468BT | 102mm (4") | Shipping labels, TSPL; BLE or USB depending on hardware revision |
-| Other Jadens TSPL printers | 48/72/102mm | Manual 2-inch, 3-inch, and 4-inch profiles |
-| NIIMBOT BLE family | Model-specific | Auto-detected through NiimBlueLib, including D, B, K, M, P, S, T and related models |
-
-NIIMBOT support uses the model metadata and protocol task selection from [NiimBlueLib](https://github.com/MultiMote/niimbluelib). Models without a confirmed task mapping in that upstream library use its broad B1-compatible fallback and should be treated as experimental until tested on hardware.
-
-The app auto-detects your printer model from the Bluetooth device name and configures the correct protocol, print width, DPI, and label presets. If auto-detection fails, you can manually select your model in Print Settings, or the app will prompt you on first connection.
-
-D-series printers print labels rotated 90° - the app handles this automatically. PM-241 printers use Bluetooth Classic (not BLE), so use the USB connection instead.
-
-## Custom Printer Definitions
-
-You can add, edit, and override printer definitions through **Print Settings > Manage Printers**. This lets you:
-
-- **Add new printers** not yet in the built-in list with your own protocol, width, DPI, and alignment settings
-- **Override built-in printers** to adjust settings like alignment or width for your specific hardware
-- **Set auto-detect patterns** so your custom definitions are recognized automatically by BLE device name
-
-Custom definitions are saved in your browser's localStorage and take priority over built-ins. Modified built-in printers can be reset to defaults at any time.
-
-Built-in definitions are loaded from `printers.json` at startup.
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl/Cmd + Z` | Undo |
-| `Ctrl/Cmd + Shift + Z` | Redo |
-| `Ctrl/Cmd + D` | Duplicate selected |
-| `Ctrl/Cmd + G` | Group selected |
-| `Ctrl/Cmd + Shift + G` | Ungroup |
-| `Ctrl/Cmd + V` | Paste image from clipboard |
-| `Delete / Backspace` | Delete selected |
-| `Arrow keys` | Nudge by 1px |
-| `Shift + Arrow keys` | Nudge by 10px |
-| `Shift + Click` | Add to selection |
-
-## Connection Tips
-
-When the Bluetooth device picker appears, select the device showing a **signal strength indicator**. Devices listed without signal strength may be cached/ghost entries that won't connect properly.
-
-## Project Structure
+## Project structure
 
 ```
-ble-label-hub/
-├── src/
-│   └── web/
-│       ├── index.html     # Main UI
-│       ├── app.js         # Application logic
-│       ├── canvas.js      # Canvas rendering & dithering
-│       ├── elements.js    # Element management
-│       ├── handles.js     # Selection handles
-│       ├── storage.js     # localStorage persistence
-│       ├── templates.js   # Variable substitution & CSV
-│       ├── ble.js         # Web Bluetooth transport
-│       ├── usb.js         # WebUSB transport
-│       ├── printer.js     # Print protocols
-│       ├── printers.json  # Built-in printer definitions
-│       ├── constants.js   # Shared constants
-│       └── utils/
-│           ├── bindings.js   # Event binding helpers
-│           ├── errors.js     # Error handling
-│           └── validation.js # Input validation
-└── README.md
+src/web/
+├── index.html        UI markup + styles (Tailwind via CDN)
+├── app.js            main controller (state, events, connect/print flow)
+├── canvas.js         CanvasRenderer — draw, filters, raster + dither
+├── printer.js        printer definitions + print() protocol dispatch
+├── niimbot.js        NiimbotTransport (wraps NiimBlueLib)
+├── ble.js / usb.js   BLE / USB transports
+├── elements.js       element model + helpers
+├── handles.js        resize/rotate handles
+├── constants.js      label-size tables + BLE UUIDs
+├── templates.js      template fields + CSV merge
+├── storage.js        localStorage persistence
+├── printers.json     built-in printer definitions
+├── manifest.json     PWA manifest
+├── sw.js             service worker (offline shell)
+└── icons/            PWA icons
 ```
 
-## Acknowledgments
+No build step — the browser loads the ES modules directly. Module imports are cache-busted with
+`?v=` query strings; bump them on change if caching gets stale. See
+[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) for architecture details and gotchas.
 
-Protocol research and inspiration:
+## Development
 
-- [vivier/phomemo-tools](https://github.com/vivier/phomemo-tools) - CUPS driver with reverse-engineered protocol
-- [yaddran/thermal-print](https://github.com/yaddran/thermal-print) - Printer status query commands
-- [ooki1jp](https://github.com/vivier/phomemo-tools/issues/27#issuecomment-3850158579) - M04AS/M04S protocol reverse-engineering
+```bash
+npm start          # copy vendor lib + serve on :3001
+npm test           # Playwright tests
+npm run vendor     # copy NiimBlueLib into src/web/vendor
+```
 
-Libraries: [JsBarcode](https://github.com/lindell/JsBarcode), [QRCode.js](https://github.com/davidshimjs/qrcodejs), [jsPDF](https://github.com/parallax/jsPDF)
+Syntax-check the ES modules (plain `node --check` fails on the `?v=` import URLs):
 
-## Support the Project
+```bash
+node --input-type=module --check < src/web/app.js
+```
 
+## Troubleshooting
 
-## License
+- **Printer pairs but won't connect** — it's likely held by its phone app (BLE = one connection).
+  Close it, toggle Bluetooth, power-cycle, retry.
+- **Connects but the printer light stays red** — the green dot is the BLE link; a Niimbot also
+  needs its handshake to finish (watch the status bar for "Printer handshake OK").
+- **"Not a Niimbot printer" / "no suitable characteristic"** — wrong connection-type dropdown.
+- **Printer not in the picker** — it's filtered to known name prefixes; Shift+click **Connect**
+  to show all Bluetooth devices.
 
-MIT License - see LICENSE file for details.
+## Credits
+
+Built on the work of these projects:
+
+- [transcriptionstream/phomymo](https://github.com/transcriptionstream/phomymo) — Phomemo thermal
+  printing foundation.
+- [a-rbsn/phomymo-pwa](https://github.com/a-rbsn/phomymo-pwa) — PWA structure and approach.
+- [labbots/NiimPrintX](https://github.com/labbots/NiimPrintX) — reference for Niimbot BLE support.
+
+Niimbot protocol support uses [NiimBlueLib](https://github.com/MultiMote/niimbluelib).

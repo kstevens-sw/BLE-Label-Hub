@@ -1,11 +1,5 @@
-/**
- * Application Constants
- * Single source of truth for all magic numbers and configuration
- */
+// App-wide constants — single source of truth for magic numbers.
 
-// =============================================================================
-// ZOOM
-// =============================================================================
 export const ZOOM = {
   MIN: 0.25,
   MAX: 3,
@@ -13,35 +7,23 @@ export const ZOOM = {
   DEFAULT: 1,
 };
 
-// =============================================================================
-// TEXT ELEMENTS
-// =============================================================================
 export const TEXT = {
   MIN_FONT_SIZE: 6,
   MAX_FONT_SIZE: 200,
   DEFAULT_FONT_SIZE: 24,
 };
 
-// =============================================================================
-// IMAGE ELEMENTS
-// =============================================================================
 export const IMAGE = {
   MIN_SCALE: 10,
   MAX_SCALE: 200,
   DEFAULT_SCALE: 100,
 };
 
-// =============================================================================
-// ELEMENT DIMENSIONS
-// =============================================================================
 export const ELEMENT = {
   MIN_WIDTH: 10,
   MIN_HEIGHT: 10,
 };
 
-// =============================================================================
-// LABEL DIMENSIONS
-// =============================================================================
 export const LABEL = {
   MIN_WIDTH: 10,
   MAX_WIDTH: 100,
@@ -49,9 +31,6 @@ export const LABEL = {
   MAX_HEIGHT: 200,
 };
 
-// =============================================================================
-// MULTI-LABEL ROLL CONFIGURATION
-// =============================================================================
 export const MULTI_LABEL = {
   MIN_LABELS_ACROSS: 1,
   MAX_LABELS_ACROSS: 8,
@@ -61,9 +40,6 @@ export const MULTI_LABEL = {
   DEFAULT_GAP: 2,
 };
 
-// =============================================================================
-// PRINT SETTINGS
-// =============================================================================
 export const PRINT = {
   MIN_COPIES: 1,
   MAX_COPIES: 99,
@@ -72,23 +48,14 @@ export const PRINT = {
   DEFAULT_FEED: 32,
 };
 
-// =============================================================================
-// HISTORY (UNDO/REDO)
-// =============================================================================
 export const HISTORY = {
   MAX_SIZE: 50,
 };
 
-// =============================================================================
-// ALIGNMENT GUIDES
-// =============================================================================
 export const GUIDES = {
   SNAP_THRESHOLD: 5, // pixels
 };
 
-// =============================================================================
-// SELECTION HANDLES
-// =============================================================================
 export const HANDLES = {
   SIZE: 8,
   HIT_AREA_PADDING: 2,
@@ -96,9 +63,6 @@ export const HANDLES = {
   ROTATION_RADIUS: 6,
 };
 
-// =============================================================================
-// TOUCH GESTURES
-// =============================================================================
 export const TOUCH = {
   LONG_PRESS_DURATION_MS: 500,
   LONG_PRESS_MOVE_TOLERANCE: 10,
@@ -106,9 +70,6 @@ export const TOUCH = {
   DOUBLE_TAP_DELAY_MS: 300,
 };
 
-// =============================================================================
-// BLE TRANSPORT
-// =============================================================================
 export const BLE = {
   SERVICE_UUID: 0xff00,
   WRITE_CHAR_UUID: 0xff02,
@@ -118,20 +79,30 @@ export const BLE = {
     0xff00,           // Standard Phomemo
     0xffe0,           // Common thermal printer service
     0xae30,           // Some label printers
+    0x18f0,           // Generic BLE thermal printer (common on cheap TSPL/ESC-POS units)
+    0xfff0,           // Another common printer service
+    0xff10,           // Some label printers
     '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISS (Issc) service
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART service (NUS)
     '0000ff00-0000-1000-8000-00805f9b34fb', // Full UUID variant
   ],
   WRITE_CHAR_UUIDS: [
     0xff02,
     0xffe1,
     0xae01,
+    0x2af1,           // 0x18f0 generic printer write
+    0xfff2,           // 0xfff0 service write
     '49535343-8841-43f4-a8d4-ecbe34729bb3',
+    '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART RX (write)
   ],
   NOTIFY_CHAR_UUIDS: [
     0xff03,
     0xffe1,
     0xae02,
+    0x2af0,           // 0x18f0 generic printer notify
+    0xfff1,           // 0xfff0 service notify
     '49535343-1e4d-4bd9-ba61-23c647249616',
+    '6e400003-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART TX (notify)
   ],
   CHUNK_SIZE: 128,
   CHUNK_DELAY_MS: 20,
@@ -139,9 +110,6 @@ export const BLE = {
   INITIAL_RETRY_DELAY_MS: 300,
 };
 
-// =============================================================================
-// STORAGE KEYS
-// =============================================================================
 export const STORAGE_KEYS = {
   DEVICE_MAPPING: 'unified_ble_device_models',
   DESIGNS: 'unified_ble_designs',
@@ -150,10 +118,6 @@ export const STORAGE_KEYS = {
   LOCAL_FONTS_ENABLED: 'unified_ble_local_fonts_enabled',
   CUSTOM_PRINTERS: 'unified_ble_custom_printers',
 };
-
-// =============================================================================
-// LABEL SIZE PRESETS
-// =============================================================================
 
 // M-series printers (M110, M220, etc.) - width x height in mm
 export const M_SERIES_LABEL_SIZES = {
@@ -169,6 +133,8 @@ export const M_SERIES_LABEL_SIZES = {
   '50x30': { width: 50, height: 30 },
   '50x80': { width: 50, height: 80 },
   '60x40': { width: 60, height: 40 },
+  '75x50': { width: 75, height: 50 },
+   '80x50': { width: 80, height: 50 },
 };
 
 // Round/circle labels for M-series printers - diameter in mm
@@ -237,9 +203,6 @@ export const PM241_LABEL_SIZES = {
   '100x100': { width: 100, height: 100 },  // Square metric
 };
 
-// =============================================================================
-// DEFAULT ELEMENT VALUES
-// =============================================================================
 export const DEFAULTS = {
   text: {
     fontFamily: 'Inter, sans-serif',
@@ -273,9 +236,6 @@ export const DEFAULTS = {
   },
 };
 
-// =============================================================================
-// SHAPE CONSTRAINTS
-// =============================================================================
 export const SHAPE = {
   MIN_STROKE_WIDTH: 1,
   MAX_STROKE_WIDTH: 20,
@@ -284,9 +244,6 @@ export const SHAPE = {
   MAX_CORNER_RADIUS: 50,
 };
 
-// =============================================================================
-// BARCODE VALIDATION
-// =============================================================================
 export const BARCODE = {
   MAX_LENGTH: {
     CODE128: 80,
@@ -302,16 +259,10 @@ export const BARCODE = {
   },
 };
 
-// =============================================================================
-// QR CODE CONSTRAINTS
-// =============================================================================
 export const QR = {
   MAX_DATA_LENGTH: 2953, // QR version 40, error correction L
 };
 
-// =============================================================================
-// CANVAS RENDERING
-// =============================================================================
 export const CANVAS = {
   SELECTION_COLOR: '#3b82f6',
   SELECTION_LINE_WIDTH: 1,
@@ -320,9 +271,6 @@ export const CANVAS = {
   BACKGROUND_PATTERN_SIZE: 10,
 };
 
-// =============================================================================
-// AVAILABLE FONTS
-// =============================================================================
 export const FONTS = [
   { value: 'Inter, sans-serif', label: 'Inter' },
   { value: 'Arial, sans-serif', label: 'Arial' },
@@ -334,9 +282,6 @@ export const FONTS = [
   { value: 'Trebuchet MS, sans-serif', label: 'Trebuchet' },
 ];
 
-// =============================================================================
-// SHAPE TYPES
-// =============================================================================
 export const SHAPE_TYPES = [
   { value: 'rectangle', label: 'Rectangle' },
   { value: 'ellipse', label: 'Ellipse' },
@@ -344,9 +289,6 @@ export const SHAPE_TYPES = [
   { value: 'line', label: 'Line' },
 ];
 
-// =============================================================================
-// BARCODE FORMATS
-// =============================================================================
 export const BARCODE_FORMATS = [
   { value: 'CODE128', label: 'Code 128' },
   { value: 'EAN13', label: 'EAN-13' },
