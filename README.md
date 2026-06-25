@@ -105,7 +105,9 @@ src/web/
 ├── printers.json     built-in printer definitions (widthBytes, DPI, rotated)
 ├── manifest.json     PWA manifest
 ├── sw.js             service worker (offline shell)
+├── _headers          cache-control rules (GitHub Pages / Cloudflare)
 ├── utils/            shared error/validation/binding helpers
+├── docs/manual.html  user manual (linked from the app's info button)
 └── icons/            PWA icons
 ```
 
