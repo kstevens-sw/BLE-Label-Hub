@@ -2386,6 +2386,27 @@ export class CanvasRenderer {
   }
 
   /**
+   * Render elements to an offscreen canvas for display (color, not 1-bit).
+   * Pass cols/rows > 1 for auto-fill tiling preview.
+   */
+  getPreviewCanvas(elements, { cols = 1, rows = 1, gapMm = 0 } = {}) {
+    let pixels, width, height;
+    if (cols > 1 || rows > 1) {
+      const gapPx = Math.round(gapMm * PX_PER_MM);
+      ({ pixels, width, height } = this._renderTiledToPixels(elements, cols, rows, gapPx));
+    } else {
+      ({ pixels, width, height } = this._renderToPixels(elements));
+    }
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = height;
+    const imgData = c.getContext('2d').createImageData(width, height);
+    imgData.data.set(pixels);
+    c.getContext('2d').putImageData(imgData, 0, 0);
+    return c;
+  }
+
+  /**
    * Convert canvas coordinates to element-local coordinates
    */
   canvasToLocal(canvasX, canvasY, element) {
