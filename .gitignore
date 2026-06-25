@@ -14,3 +14,4 @@ src/web/google*.html
 # macOS
 .DS_Store
 
+scripts/
