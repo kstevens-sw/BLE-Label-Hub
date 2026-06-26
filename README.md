@@ -9,16 +9,30 @@ Phomemo, and many M-/D-series, P12/A30 tape, and TSPL shipping printers.
 
 ## Quick start
 
+**Prerequisites:** [Node.js 20+](https://nodejs.org) and npm (included with Node), Python 3 (pre-installed on macOS/Linux; [download for Windows](https://python.org)), and Chrome or Edge.
+
 ```bash
+# 1. Clone the repo
+git clone https://github.com/kstevens-sw/BLE-Label-Hub.git
+cd BLE-Label-Hub
+
+# 2. Install dependencies
+npm install
+
+# 3. Start the dev server
 npm start
-# serves src/web on http://localhost:3001 — open in Chrome or Edge
+# → opens on http://localhost:3001 — open that URL in Chrome or Edge
 ```
 
-1. Open the app in Chrome/Edge (desktop or Android).
+Then:
+
+1. Open **http://localhost:3001** in Chrome or Edge.
 2. Set the **connection-type dropdown** (next to Connect) to match your printer:
    **Bluetooth**, **Niimbot**, or **USB** — see [Connecting](#connecting).
 3. Click **Connect** and pick your printer from the browser's device picker.
 4. Design your label and click **Print**.
+
+> **Just want to try it?** Skip the setup — use the hosted version at **[kstevens-sw.github.io/BLE-Label-Hub](https://kstevens-sw.github.io/BLE-Label-Hub/)**. Web Bluetooth requires HTTPS, which the hosted version provides.
 
 **Requires** a Chromium browser (Chrome, Edge, Opera). Web Bluetooth is **not** available in
 Firefox or Safari, and **not** on iOS. Android Chrome is supported. Production hosting needs
