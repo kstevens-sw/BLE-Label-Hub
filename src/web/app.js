@@ -4942,7 +4942,7 @@ function initPrinterModelPrompt() {
 async function handleConnect(event) {
   // Check if printing is supported in this browser
   if (!state.canPrint) {
-    alert('Printing is not available in this browser.\n\nPlease use Chrome, Edge, or Opera on desktop for Bluetooth printing.');
+    alert('Printing is not available in this browser.\n\nPlease use Chrome, Edge, or Opera on desktop or Android for Bluetooth printing.');
     return;
   }
 
@@ -6163,7 +6163,7 @@ function checkCompatibility() {
   }
 
   if (!('bluetooth' in navigator)) {
-    warnings.push('Web Bluetooth not supported - printing requires Chrome, Edge, or Opera');
+    warnings.push('Web Bluetooth not supported - printing requires Chrome, Edge, or Opera on desktop or Android');
     canPrint = false;
   }
 

@@ -34,9 +34,9 @@ Then:
 
 > **Just want to try it?** Skip the setup — use the hosted version at **[kstevens-sw.github.io/BLE-Label-Hub](https://kstevens-sw.github.io/BLE-Label-Hub/)**. Web Bluetooth requires HTTPS, which the hosted version provides.
 
-**Requires** a Chromium browser (Chrome, Edge, Opera). Web Bluetooth is **not** available in
-Firefox or Safari, and **not** on iOS. Android Chrome is supported. Production hosting needs
-HTTPS; `localhost` works for development.
+**Requires** a Chromium browser (Chrome, Edge, Opera) on **desktop or Android**. Web
+Bluetooth is **not** available in Firefox or Safari, and **not available on any iOS browser**
+(Apple blocks the API). Production hosting needs HTTPS; `localhost` works for development.
 
 ## Install as a mobile app (PWA)
 
