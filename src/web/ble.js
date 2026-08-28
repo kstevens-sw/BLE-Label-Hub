@@ -267,6 +267,22 @@ export class BLETransport {
     // This helps with timing issues on some devices
     await this.delay(100);
 
+    // ponytail: dump the real GATT layout before we guess at it. The service loop
+    // below takes the FIRST match from ALT_SERVICE_UUIDS, which silently picks a
+    // config/OTA service over the actual data path on some units — writes then
+    // succeed at the GATT level and the printer ignores them. This log is the only
+    // way to see that from the outside. Remove once the printer list is verified.
+    try {
+      for (const svc of await this.server.getPrimaryServices()) {
+        const chars = await svc.getCharacteristics();
+        console.log(`GATT service ${svc.uuid}:`, chars.map(c =>
+          `${c.uuid} [${Object.entries(c.properties).filter(([, v]) => v).map(([k]) => k).join(',')}]`
+        ));
+      }
+    } catch (e) {
+      console.warn('GATT dump failed:', e.message);
+    }
+
     // Try to find a working service (some printers use different UUIDs)
     console.log('Getting service...');
     const servicesToTry = BLE.ALT_SERVICE_UUIDS || [BLE.SERVICE_UUID];

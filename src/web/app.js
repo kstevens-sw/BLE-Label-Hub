@@ -5,10 +5,10 @@
  */
 
 import { CanvasRenderer } from './canvas.js?v=116';
-import { BLETransport } from './ble.js?v=104';
+import { BLETransport } from './ble.js?v=105';
 import { NiimbotTransport } from './niimbot.js?v=2';
 import { USBTransport } from './usb.js?v=101';
-import { print, printDensityTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=132';
+import { print, printDensityTest, printTSPLTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=136';
 import {
   createTextElement,
   createImageElement,
@@ -86,7 +86,7 @@ import {
   D_SERIES_ROUND_LABELS,
   TAPE_LABEL_SIZES,
   PM241_LABEL_SIZES,
-} from './constants.js?v=106';
+} from './constants.js?v=107';
 import { applyTheme, loadSavedTheme } from './themes.js?v=1';
 import {
   bindCheckbox,
@@ -1299,6 +1299,9 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto', forceDefault =
 // --- M04S multi-width — user selects, default 50x30 for 53 mm ----------------
     'm04s':           '50x30',
     'm04as':          '50x30',
+
+// --- Built-in TSPL 2-inch — 40x20 is the stock roll these ship with -------
+    'dp27p':          '40x20',
 
 // --- niimbot-auto fallback — B1-class 50x30 ------------------------------
     'niimbot-auto':   '50x30',
@@ -2604,6 +2607,7 @@ async function handleBatchPrint() {
         density,
         feed,
         continuous: !!(state.labelSize?.continuous),
+        labelWidthMm: tsplMediaWidthMm(),
         onProgress: (progress) => {
           updatePrintProgress(rowIndex + 1, totalRows, `Sending data... ${progress}%`);
         },
@@ -2691,6 +2695,7 @@ async function handlePrintSinglePreview() {
       density,
       feed,
       continuous: !!(state.labelSize?.continuous),
+      labelWidthMm: tsplMediaWidthMm(),
       onProgress: (progress) => {
         btn.textContent = `Printing... ${progress}%`;
       },
@@ -5098,6 +5103,23 @@ function printableWidthMm(printerWidthBytes, printerDpi = 203) {
 }
 
 /**
+ * Physical media width in mm, for TSPL's SIZE command.
+ *
+ * TSPL needs the width of the PAPER, but the raster is padded out to the full
+ * print head, so deriving it from the raster claims a 48mm label on a 40mm roll
+ * and the printer mis-feeds. state.labelSize is the truth — except when the
+ * raster holds more than one label across (Auto-Fill tiling, multi-label zones),
+ * where the media really is the full head width. Return null there and let
+ * print() fall back to the head width.
+ *
+ * @param {boolean} tiled - true when Auto-Fill built a multi-column sheet
+ */
+function tsplMediaWidthMm(tiled = false) {
+  if (tiled || state.multiLabel.enabled) return null;
+  return state.labelSize?.width ?? null;
+}
+
+/**
  * How many copies of the label fit on the sheet as a 2D grid.
  * @returns {{cols:number, rows:number, count:number}} count<=1 means don't tile.
  */
@@ -5261,6 +5283,7 @@ async function handlePrint() {
         density,
         feed,
         continuous: !!(state.labelSize?.continuous),
+        labelWidthMm: tsplMediaWidthMm(!!(grid && grid.count > 1)),
         onProgress: (progress) => {
           btn.textContent = `Printing... ${progress}%`;
           setStatus(`Printing${copyText}... ${progress}%`);
@@ -7885,15 +7908,32 @@ function init() {
       btn.disabled = true;
       btn.innerHTML = '🧪 Printing test...';
       printSettingsDialog.classList.add('hidden');
-      setStatus('Printing density test (8 strips)...');
 
-      await printDensityTest(
-        state.transport,
-        state.connectionType === 'ble',
-        (progress) => setStatus(`Printing density test... ${progress}%`)
-      );
-
-      setStatus('Density test complete! Compare the 8 strips (1=lightest, 8=darkest)');
+      // TSPL printers can't read the ESC/POS raster the density test sends, so
+      // that test is meaningless on them. Send the TSPL self-test instead: same
+      // setup preamble, drawn with TEXT/BAR/BOX, which tells us whether a blank
+      // feed is a media-setup problem or a BITMAP problem.
+      const deviceName = state.transport.getDeviceName?.() || '';
+      if (isTSPLPrinter(deviceName, state.printSettings.printerModel)) {
+        setStatus('Calibrating media sensor, then printing TSPL self-test (feeds a few blanks)...');
+        await printTSPLTest(
+          state.transport,
+          state.labelSize?.width ?? 40,
+          state.labelSize?.height ?? 20,
+          state.printSettings.density,
+          !!(state.labelSize?.continuous),
+          getDetectedDefinition(deviceName, state.printSettings.printerModel)
+        );
+        setStatus('TSPL self-test sent. Anything printed = the bitmap path is the problem, not the media setup.');
+      } else {
+        setStatus('Printing density test (8 strips)...');
+        await printDensityTest(
+          state.transport,
+          state.connectionType === 'ble',
+          (progress) => setStatus(`Printing density test... ${progress}%`)
+        );
+        setStatus('Density test complete! Compare the 8 strips (1=lightest, 8=darkest)');
+      }
     } catch (error) {
       logError(error, 'densityTest');
       setStatus(error.message || 'Density test failed');

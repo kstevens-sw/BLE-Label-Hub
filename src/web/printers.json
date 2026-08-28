@@ -325,6 +325,26 @@
       "builtin": true
     },
     {
+      "id": "dp27p",
+      "name": "DP27P",
+      "group": "Other",
+      "description": "Chinese 2-inch TSPL label printer. UNVERIFIED: 384px head @ 203 DPI assumed from 2-inch class; confirm against the unit's max paper width.",
+      "protocol": "tspl",
+      "widthBytes": 48,
+      "dpi": 203,
+      "alignment": "center",
+      "rotated": false,
+      "tape": false,
+      "tapeWidths": null,
+      "defaultTapeWidth": null,
+      "namePatterns": [
+        "DP27P",
+        "DP27"
+      ],
+      "labelPresets": "m-series",
+      "builtin": true
+    },
+    {
       "id": "jadens-tspl-2in",
       "name": "Jadens TSPL - 2 inch",
       "group": "Jadens",
@@ -390,6 +410,7 @@
       "defaultTapeWidth": null,
       "namePatterns": ["PM-241", "PM241", "PM 241", "PM249", "PM-249"],
       "labelPresets": "pm241",
+      "tsplOffsetMm": -3,
       "builtin": true
     },
     {

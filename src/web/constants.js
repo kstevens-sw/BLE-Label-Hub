@@ -127,6 +127,7 @@ export const M_SERIES_LABEL_SIZES = {
   '25x50': { width: 25, height: 50 },
   '30x20': { width: 30, height: 20 },
   '30x40': { width: 30, height: 40 },
+  '40x20': { width: 40, height: 20 },
   '40x30': { width: 40, height: 30 },
   '40x60': { width: 40, height: 60 },
   '50x25': { width: 50, height: 25 },

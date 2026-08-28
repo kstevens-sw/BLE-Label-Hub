@@ -51,6 +51,7 @@ Each entry in `printers[]`:
 | m04s-53/80/110 | 600/896/1232 | 300 | no | m04 | verify head widths & that user picks variant |
 | m110 / m110s | 384 | 203 | no | m110 | verify |
 | m200/m220/m221/m250/m260 | 608/576 | 203 | no | m-series | verify each head px |
+| dp27p | 384 | 203 | no | tspl | **unverified — best guess** (2-inch class assumed; confirm max paper width on the unit) |
 | jadens-jd-468bt | 816 | 203 | no | tspl | verify (4-inch class) |
 | jadens-tspl-2in/3in/4in | 384/576/816 | 203 | no | tspl | verify |
 | pm241 | 816 | 203 | no | tspl | verify |

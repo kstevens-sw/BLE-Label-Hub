@@ -218,6 +218,26 @@ function _buildPatternList() {
 }
 
 /**
+ * Does an already-uppercased device `name` match `pattern`?
+ *
+ * Prefix match, EXCEPT that single-character catch-all patterns (the "D" that
+ * backstops the D-series entry) additionally require the following character not
+ * to be a letter. Without that rule any device whose name merely begins with the
+ * letter is silently claimed by the catch-all: a DP27P was resolving to
+ * D30/D35/Q30, i.e. a 96px rotated tape printer, so a 40x20mm label rotated to
+ * 160px wide and tripped the head-width guard below (and, under the guard, would
+ * have fed blank on D-series opcodes the printer does not speak).
+ *
+ * Digits still match, so "D30" / "D35" / "D50" auto-detect exactly as before.
+ */
+function _matchesPattern(name, pattern) {
+  if (!name.startsWith(pattern)) return false;
+  if (pattern.length > 1) return true;
+  const next = name.charAt(pattern.length);
+  return next === '' || !/[A-Z]/.test(next);
+}
+
+/**
  * Get printer configuration from device name (auto-detect)
  * @param {string} deviceName - BLE device name
  * @returns {Object} { width, protocol, dpi, recognized, matchedPattern, definition }
@@ -229,7 +249,7 @@ function detectPrinterConfig(deviceName) {
   const patterns = _buildPatternList();
 
   for (const { pattern, def } of patterns) {
-    if (name.startsWith(pattern)) {
+    if (_matchesPattern(name, pattern)) {
       return {
         width: def.widthBytes,
         protocol: def.protocol,
@@ -440,8 +460,9 @@ export function getMatchedPattern(deviceName) {
 /**
  * Get the definition that matched a device name (for auto-detect)
  */
-export function getDetectedDefinition(deviceName) {
-  return detectPrinterConfig(deviceName).definition;
+export function getDetectedDefinition(deviceName, modelOverride = 'auto') {
+  // Honour a manual model pick; 'auto' resolves to name detection as before.
+  return _resolveConfig(deviceName, modelOverride).definition;
 }
 
 export function isDSeriesPrinter(deviceName, modelOverride = 'auto') {
@@ -590,7 +611,7 @@ function rotateRaster90CW(data, widthBytes, heightLines) {
  * @param {Function} options.onProgress - Progress callback (percent)
  */
 export async function print(transport, rasterData, options = {}) {
-  const { isBLE = false, deviceName = '', printerModel = 'auto', density = 6, feed = 32, continuous = false, onProgress = null } = options;
+  const { isBLE = false, deviceName = '', printerModel = 'auto', density = 6, feed = 32, continuous = false, labelWidthMm: mediaWidthMm = null, onProgress = null } = options;
   const { data, widthBytes, heightLines } = rasterData;
 
   const isDSeries = isDSeriesPrinter(deviceName, printerModel);
@@ -632,10 +653,15 @@ export async function print(transport, rasterData, options = {}) {
     });
   } else if (isTSPL) {
     // TSPL protocol for shipping label printers (PM-241, etc.)
-    // Get label dimensions in mm from raster data
-    const labelWidthMm = Math.round(widthBytes * 8 / 8); // 8 dots/mm at 203 DPI
+    // SIZE must describe the PAPER. The caller knows the real media width; only
+    // fall back to the head width (8 dots/mm at 203 DPI, so widthBytes == mm) when
+    // it doesn't — the raster is padded out to the head, so deriving width from it
+    // over-claims the label and the printer mis-feeds. Height is safe to derive:
+    // the raster is exactly as tall as what we're printing.
+    const labelWidthMm = mediaWidthMm ?? widthBytes;
     const labelHeightMm = Math.round(heightLines / 8);
-    await printTSPL(transport, data, widthBytes, heightLines, labelWidthMm, labelHeightMm, density, onProgress);
+    const def = _resolveConfig(deviceName, printerModel).definition;
+    await printTSPL(transport, data, widthBytes, heightLines, labelWidthMm, labelHeightMm, density, continuous, def, onProgress);
   } else if (isP12 && isBLE) {
     // P12 uses its own protocol with proprietary init sequence
     await printP12(transport, data, widthBytes, heightLines, onProgress);
@@ -1047,34 +1073,43 @@ async function printUSB(transport, data, widthBytes, heightLines, density, feed,
 }
 
 /**
- * Print via TSPL protocol (for shipping label printers like PM-241)
- * TSPL is a text-based command language used by many Chinese thermal label printers
+ * Send the TSPL media/print setup preamble, up to and including CLS.
+ *
+ * Shared by the real print path and the TSPL self-test so the two can't drift —
+ * the self-test is only useful as a diagnostic if it configures the printer
+ * exactly the way a real print does.
  */
-async function printTSPL(transport, data, widthBytes, heightLines, labelWidthMm, labelHeightMm, density, onProgress) {
-  console.log('Using TSPL protocol...');
-  console.log(`Label size: ${labelWidthMm}mm x ${labelHeightMm}mm`);
-  console.log(`Raster: ${widthBytes} bytes wide x ${heightLines} rows`);
-
+async function sendTSPLSetup(transport, labelWidthMm, labelHeightMm, density, continuous, def = null) {
   // Map density 1-8 to TSPL density 0-15
   const tsplDensity = Math.round((density / 8) * 15);
 
-  // Build TSPL command sequence
-  console.log('Sending TSPL setup commands...');
+  // Media knobs are per-printer, from printers.json. Real thermal media varies by
+  // roll (die-cut gaps run 2-3mm) and every unit's sensor sits differently, so
+  // these have to be tunable per model without a code change.
+  const gapMm = continuous ? 0 : (def?.tsplGapMm ?? 3);
+  // OFFSET shifts the stop position. Default 0 (the TSPL default). The PM-241 is
+  // the one model tuned to -3mm, and it keeps that; nothing else inherits it,
+  // because on a short label a negative offset can push the stop position past
+  // the next gap so the sensor never registers it and the printer feeds forever.
+  const offsetMm = def?.tsplOffsetMm ?? 0;
+  console.log(`TSPL setup: SIZE ${labelWidthMm}x${labelHeightMm}mm, GAP ${gapMm}mm, OFFSET ${offsetMm}mm, density ${tsplDensity}, ${continuous ? 'continuous' : 'die-cut'}`);
 
   // SIZE command - label dimensions
   await transport.send(TSPL.SIZE(labelWidthMm, labelHeightMm));
   await transport.delay(50);
 
-  // GAP command - gap between labels (3mm typical for die-cut labels)
-  await transport.send(TSPL.GAP(3));
+  // GAP command - 0 on continuous media: a non-zero gap makes the printer hunt
+  // for a gap that isn't there and it either errors or feeds until it gives up,
+  // printing nothing.
+  await transport.send(TSPL.GAP(gapMm));
   await transport.delay(50);
 
-  // OFFSET command - shift print down to center on label (negative = down)
-  await transport.send(new TextEncoder().encode('OFFSET -3 mm\r\n'));
-  await transport.delay(50);
+  if (offsetMm !== 0) {
+    await transport.send(new TextEncoder().encode(`OFFSET ${offsetMm} mm\r\n`));
+    await transport.delay(50);
+  }
 
   // DENSITY command
-  console.log(`Setting TSPL density to ${tsplDensity}...`);
   await transport.send(TSPL.DENSITY(tsplDensity));
   await transport.delay(50);
 
@@ -1089,6 +1124,64 @@ async function printTSPL(transport, data, widthBytes, heightLines, labelWidthMm,
   // CLS - clear image buffer
   await transport.send(TSPL.CLS());
   await transport.delay(50);
+}
+
+/**
+ * TSPL self-test: same setup preamble as a real print, but drawn with the
+ * printer's own TEXT/BAR primitives instead of a bitmap.
+ *
+ * This isolates the two causes of "feeds the label but prints nothing":
+ *   - Something comes out  -> media setup is fine, the BITMAP path is the bug
+ *     (byte count, inversion, or the printer not supporting BITMAP at all).
+ *   - Still blank + feeding -> the setup itself is wrong (SIZE/GAP/OFFSET vs the
+ *     actual media), or the printer does not speak TSPL.
+ */
+export async function printTSPLTest(transport, labelWidthMm, labelHeightMm, density = 6, continuous = false, def = null) {
+  console.log(`TSPL self-test on a ${labelWidthMm}x${labelHeightMm}mm label...`);
+  await sendTSPLSetup(transport, labelWidthMm, labelHeightMm, density, continuous, def);
+
+  const enc = new TextEncoder();
+
+  // Make the printer measure the media itself and store the result in NVRAM.
+  // "Feeds forever, prints nothing" is the classic uncalibrated gap sensor, and
+  // no SIZE/GAP values we guess will fix a sensor that was never taught the
+  // media. Costs a couple of blank labels, which is why it lives in the manual
+  // self-test and not on every print.
+  if (!continuous) {
+    console.log('Running GAPDETECT (sensor calibration, will feed a few labels)...');
+    await transport.send(enc.encode('GAPDETECT\r\n'));
+    await transport.delay(4000);
+    // Re-assert the setup: calibration resets the buffer on some firmware.
+    await sendTSPLSetup(transport, labelWidthMm, labelHeightMm, density, continuous, def);
+  }
+
+  // Keep every mark well inside the label so a small offset error still shows.
+  await transport.send(enc.encode('TEXT 16,16,"3",0,1,1,"TSPL OK"\r\n'));
+  await transport.delay(50);
+  // Filled bar, 2mm tall, spanning most of the label width (8 dots/mm @ 203 DPI).
+  const barWidth = Math.max(8, (labelWidthMm - 4) * 8);
+  await transport.send(enc.encode(`BAR 16,56,${Math.round(barWidth)},16\r\n`));
+  await transport.delay(50);
+  // Box outline proves the printer knows where the label edges are.
+  await transport.send(enc.encode(`BOX 8,8,${Math.round(labelWidthMm * 8) - 8},${Math.round(labelHeightMm * 8) - 8},2\r\n`));
+  await transport.delay(50);
+
+  await transport.send(TSPL.PRINT(1));
+  await transport.delay(50);
+  await transport.send(TSPL.END());
+  console.log('TSPL self-test sent.');
+}
+
+/**
+ * Print via TSPL protocol (for shipping label printers like PM-241)
+ * TSPL is a text-based command language used by many Chinese thermal label printers
+ */
+async function printTSPL(transport, data, widthBytes, heightLines, labelWidthMm, labelHeightMm, density, continuous = false, def = null, onProgress = null) {
+  console.log('Using TSPL protocol...');
+  console.log(`Label size: ${labelWidthMm}mm x ${labelHeightMm}mm`);
+  console.log(`Raster: ${widthBytes} bytes wide x ${heightLines} rows`);
+
+  await sendTSPLSetup(transport, labelWidthMm, labelHeightMm, density, continuous, def);
 
   // BITMAP command header
   console.log('Sending BITMAP header...');
