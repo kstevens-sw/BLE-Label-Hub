@@ -54,6 +54,14 @@ assert.strictEqual(a30.dpi, 203, 'A30 DPI must be 203');
 assert.strictEqual(a30.rotated, true, 'A30 must be marked as rotated');
 console.log('✓ a30 (A30): widthBytes=15, dpi=203, rotated=true');
 
+// A42: generic 2-inch Print Master printer, 48-byte head (384px @ 203 DPI), not rotated
+const a42 = getPrinterSpec('a42');
+assert.strictEqual(a42.widthBytes, 48, 'A42 head width must be 48 bytes (384px @ 203 DPI)');
+assert.strictEqual(a42.dpi, 203, 'A42 DPI must be 203');
+assert.strictEqual(a42.rotated, false, 'A42 prints upright, not rotated');
+assert.ok(a42.namePatterns.includes('A42'), 'A42 must auto-detect on its BLE name');
+console.log('✓ a42 (A42): widthBytes=48, dpi=203, rotated=false');
+
 // Test the guard math: rotation overflow detection
 function testGuardMath() {
   const testCases = [
@@ -82,5 +90,33 @@ function testGuardMath() {
 
 console.log('\nTesting guard math (90° rotation overflow detection):');
 testGuardMath();
+
+// TSPL SIZE width: the caller's real media width wins; the head width is only a
+// fallback. Deriving it from the raster over-claims the label (the raster is
+// padded out to the full head) and the printer mis-feeds.
+function testTsplSizeWidth() {
+  const resolve = (mediaWidthMm, widthBytes) => mediaWidthMm ?? widthBytes;
+
+  const testCases = [
+    [40, 48, 40, '40mm label on a 48-byte head → SIZE 40mm, not 48mm'],
+    [100, 102, 100, '100mm label on a PM-241 (102-byte head) → SIZE 100mm'],
+    [null, 48, 48, 'tiled/multi-label raster → fall back to the 48mm head width'],
+    [48, 48, 48, 'label exactly fills the head → 48mm either way'],
+  ];
+
+  testCases.forEach(([mediaWidthMm, widthBytes, expected, desc]) => {
+    const actual = resolve(mediaWidthMm, widthBytes);
+    assert.strictEqual(actual, expected, `TSPL SIZE width failed for ${desc}: got ${actual}mm`);
+    console.log(`  ✓ ${desc}`);
+  });
+
+  // 0 is not a valid media width, but ?? must not swallow it into the fallback
+  // the way || would — catch that if someone "simplifies" the operator later.
+  assert.strictEqual(resolve(0, 48), 0, '?? must pass 0 through, not fall back to the head width');
+  console.log('  ✓ zero media width passes through ?? (would break under ||)');
+}
+
+console.log('\nTesting TSPL SIZE width resolution:');
+testTsplSizeWidth();
 
 console.log('\n✓ All printer spec tests passed!');

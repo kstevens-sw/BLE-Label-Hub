@@ -308,6 +308,23 @@
       "builtin": true
     },
     {
+      "id": "a42",
+      "name": "A42",
+      "group": "Other",
+      "description": "Generic 2-inch Print Master label printer (48mm). UNVERIFIED: 384px head @ 203 DPI assumed from 2-inch class; confirm with a full-width test print.",
+      "protocol": "m-series",
+      "widthBytes": 48,
+      "dpi": 203,
+      "alignment": "center",
+      "rotated": false,
+      "tape": false,
+      "tapeWidths": null,
+      "defaultTapeWidth": null,
+      "namePatterns": ["A42"],
+      "labelPresets": "m-series",
+      "builtin": true
+    },
+    {
       "id": "jadens-jd-468bt",
       "name": "Jadens JD-468BT",
       "group": "Jadens",
