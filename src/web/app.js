@@ -5006,6 +5006,8 @@ async function handleConnect(event) {
       state.transport.onLog = (msg) => { setStatus(msg); updateFooterPrinterInfo(); };
     }
 
+    // Wipe the previous printer's readings before this one reports its own.
+    resetPrinterInfoPanel();
     updateConnectionStatus(true);
 
     // Check device recognition and handle accordingly
@@ -5090,8 +5092,27 @@ async function handleDisconnect() {
     }
     state.transport = null;
   }
+  resetPrinterInfoPanel();
   updateConnectionStatus(false);
   setStatus('Disconnected');
+}
+
+/**
+ * Blank the printer info panel.
+ *
+ * The transport is a singleton and these fields are only overwritten when a
+ * reply actually arrives, so without this the previous printer's battery,
+ * paper state and firmware stay on screen for the next one — reading as live
+ * data for a printer that never reported it.
+ */
+function resetPrinterInfoPanel() {
+  for (const id of ['#pi-battery-text', '#pi-paper', '#pi-firmware', '#pi-serial', '#pi-device-name', '#pi-model']) {
+    const el = $(id);
+    if (el) el.textContent = '--';
+  }
+  $('#pi-paper')?.classList.remove('text-red-600', 'font-semibold');
+  const icon = $('#pi-battery-icon');
+  if (icon) icon.className = 'text-gray-400';
 }
 
 /**
@@ -7686,6 +7707,13 @@ function init() {
       printerInfoPopup.style.top = `${rect.bottom + 8}px`;
       printerInfoPopup.style.right = `${window.innerWidth - rect.right}px`;
       printerInfoPopup.classList.remove('hidden');
+      // Status is queried once, 500ms after connect. A printer that was not
+      // ready yet (or ignores the query) then reads "--" until the refresh
+      // button is pressed, which looks like the app has no battery support.
+      // Re-ask on open; the reply arrives over the notification handler.
+      if (state.transport?.isConnected() && state.transport.queryAll) {
+        state.transport.queryAll().catch(e => console.warn('Info query failed:', e.message));
+      }
     } else {
       printerInfoPopup.classList.add('hidden');
     }

@@ -248,6 +248,7 @@ export class BLETransport {
         }
         this.notifyChar = null;
         this._notificationHandler = null;
+        this.resetPrinterInfo();
         if (this.onDisconnect) this.onDisconnect();
       });
       this.device._hasDisconnectHandler = true;
@@ -398,6 +399,9 @@ export class BLETransport {
     this.service = null;
     this.writeChar = null;
     this.notifyChar = null;
+    // The transport is a singleton, so anything left here is shown as if it
+    // belonged to the NEXT printer connected. Clear it.
+    this.resetPrinterInfo();
     this._notificationHandler = null;
   }
 
@@ -570,15 +574,19 @@ export class BLETransport {
         field = 'hot';
         break;
 
-      case 0x04: // Battery
-        if (data[2] === 0xA4) value = 0;
-        else if (data[2] === 0xA3) value = 3;
-        else if (data[2] === 0xA2) value = 5;
-        else if (data[2] === 0xA1) value = 10;
-        else value = data[2];
+      case 0x04: { // Battery
+        // 0xA1-0xA4 are low-level buckets, not percentages; anything else is
+        // read as a raw percent. Bytes above 100 are NOT battery data — render
+        // them and a status byte silently becomes a plausible-looking level
+        // (0x53 -> "83%"). Unknown beats wrong here.
+        const BUCKETS = { 0xA4: 0, 0xA3: 3, 0xA2: 5, 0xA1: 10 };
+        const raw = data[2];
+        value = raw in BUCKETS ? BUCKETS[raw] : (raw <= 100 ? raw : null);
+        if (value === null) console.warn(`Ignoring implausible battery byte 0x${raw.toString(16)}`);
         field = 'battery';
         this.printerInfo.battery = value;
         break;
+      }
 
       case 0x05: // Cover
         value = data[2] === 0x98 ? 'open' : (data[2] === 0x99 ? 'closed' : 'unknown');
