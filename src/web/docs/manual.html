@@ -318,11 +318,21 @@
         <thead><tr><th>Model(s)</th><th>Paper width</th><th>DPI</th><th>Protocol</th></tr></thead>
         <tbody>
           <tr><td>JD-468BT</td><td>104mm (4-inch)</td><td>203</td><td>TSPL over BLE</td></tr>
-          <tr><td>TSPL 2-inch</td><td>48mm</td><td>203</td><td>TSPL over BLE</td></tr>
-          <tr><td>TSPL 3-inch</td><td>72mm</td><td>203</td><td>TSPL over BLE</td></tr>
-          <tr><td>TSPL 4-inch</td><td>104mm</td><td>203</td><td>TSPL over BLE</td></tr>
         </tbody>
       </table>
+
+      <h3>Generic — unlisted printers</h3>
+      <p>Pick a <strong>Generic</strong> profile for any printer that connects but is not in the lists above. Match the paper width and the command language; nothing else about the printer needs to be known. Your choice is remembered for that device.</p>
+      <table>
+        <thead><tr><th>Profile</th><th>Printable width</th><th>DPI</th><th>Protocol</th></tr></thead>
+        <tbody>
+          <tr><td>Generic 53mm (ESC/POS)</td><td>53mm / 424px</td><td>203</td><td>ESC/POS raster</td></tr>
+          <tr><td>Generic 58mm (ESC/POS)</td><td>48mm / 384px</td><td>203</td><td>ESC/POS raster</td></tr>
+          <tr><td>Generic 80mm (ESC/POS)</td><td>72mm / 576px</td><td>203</td><td>ESC/POS raster</td></tr>
+          <tr><td>Generic TSPL 2 / 3 / 4 inch</td><td>48 / 72 / 104mm</td><td>203</td><td>TSPL over BLE</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Pocket and receipt printers are usually ESC/POS; label printers that expect a gap sensor and fixed label size are usually TSPL. If one prints nothing, try the other before assuming the printer is unsupported. Battery, paper and firmware readings work on any profile — they come from the printer, not from the profile — so a Generic printer that answers status queries shows them too.</p>
 
       <h3>NIIMBOT</h3>
       <p>NIIMBOT printers use their own BLE protocol. Select <strong>Niimbot</strong> from the connection-type dropdown — using <em>Bluetooth</em> mode will pair but fail to print. Supported models include B1, B21, D11, D110, B18, and others recognized by the NiimBlueLib library.</p>

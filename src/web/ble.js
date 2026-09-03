@@ -125,6 +125,7 @@ export class BLETransport {
               { namePrefix: 'Q' },      // M110S (advertises as Q199E... pattern)
               { namePrefix: 'T' },      // T02
               { namePrefix: 'A' },      // A30
+              { namePrefix: 'C' },      // C2 and other mini pocket printers
               { namePrefix: 'J' },
               { namePrefix: 'Mr.in' },  // Mr.in series
               { namePrefix: 'Phomemo' },

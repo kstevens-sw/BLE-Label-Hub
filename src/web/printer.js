@@ -28,7 +28,10 @@ export async function loadPrinterDefinitions() {
     const resp = await fetch('./printers.json');
     const json = await resp.json();
     _builtinDefinitions = (json.printers || []).map(definition => {
-      if (definition.group === 'Jadens' || definition.group === 'NIIMBOT') {
+      // Everything else is a Phomemo or a Phomemo-protocol clone; keep the
+      // groups that are explicitly not, so "Other" printers are not filed
+      // under a brand they have nothing to do with.
+      if (['Jadens', 'NIIMBOT', 'Generic', 'Other'].includes(definition.group)) {
         return definition;
       }
       return { ...definition, group: 'Phomemo' };
@@ -680,7 +683,8 @@ export async function print(transport, rasterData, options = {}) {
     // M110/M110S/M120 uses phomemo-tools protocol
     await printM110(transport, data, widthBytes, heightLines, density, onProgress);
   } else if (isBLE) {
-    await printBLE(transport, data, widthBytes, heightLines, density, feed, onProgress);
+    const gentle = !!_resolveConfig(deviceName, printerModel).definition?.escposGentle;
+    await printBLE(transport, data, widthBytes, heightLines, density, feed, onProgress, gentle);
   } else {
     await printUSB(transport, data, widthBytes, heightLines, density, feed, onProgress);
   }
@@ -986,39 +990,60 @@ async function printM110(transport, data, widthBytes, heightLines, density, onPr
  * Print via BLE transport
  * Uses the protocol that works with M260
  */
-async function printBLE(transport, data, widthBytes, heightLines, density, feed, onProgress) {
+async function printBLE(transport, data, widthBytes, heightLines, density, feed, onProgress, gentle = false) {
   // Init - must be right before data
   console.log('Sending init...');
   await transport.send(CMD.INIT);
   await transport.delay(100);
 
   // Set density using ESC 7 heat command (more widely supported)
-  const heatTime = densityToHeatTime(density);
-  console.log(`Setting density to ${density} (heat time: ${heatTime})...`);
-  await transport.send(CMD.HEAT_SETTINGS(7, heatTime, 2));
+  //
+  // ESC 7 n1 n2 n3 = max heated dots, heat TIME (x10us), heat INTERVAL (x10us).
+  // Heat time is energy per line: at density 8 this asks for 2ms of heating with
+  // only 20us of cooldown between pulses. A mains-powered printer copes; a small
+  // battery-powered one browns out and switches itself off part-way down the
+  // page, worst on dense black artwork. GENTLE_HEAT_CAP holds the heat time to
+  // the firmware's own typical default and quadruples the cooldown, which is
+  // what "gentle" trades print darkness for.
+  const GENTLE_HEAT_CAP = 100;
+  const GENTLE_HEAT_INTERVAL = 8;
+  const heatTime = gentle
+    ? Math.min(densityToHeatTime(density), GENTLE_HEAT_CAP)
+    : densityToHeatTime(density);
+  const heatInterval = gentle ? GENTLE_HEAT_INTERVAL : 2;
+  console.log(`Setting density to ${density} (heat time: ${heatTime}, interval: ${heatInterval}${gentle ? ', gentle' : ''})...`);
+  await transport.send(CMD.HEAT_SETTINGS(7, heatTime, heatInterval));
   await transport.delay(30);
   // Also send standard density command as backup
   await transport.send(CMD.DENSITY(density));
   await transport.delay(50);
 
-  // Raster header
-  console.log('Sending header...');
-  await transport.send(CMD.RASTER_HEADER(widthBytes, heightLines));
-
-  // Send data in 128-byte chunks
-  console.log('Sending data...');
+  // One GS v 0 block for the whole image keeps the head printing without a break.
+  // Banding it gives the printer a gap per band to catch up and cool, at the cost
+  // of a few extra header bytes. Only unknown/generic hardware pays that cost;
+  // the models we have tested keep the single-block stream they work with today.
+  const bandLines = gentle ? 64 : heightLines;
   const chunkSize = 128;
-  const totalChunks = Math.ceil(data.length / chunkSize);
+  const rowBytes = widthBytes;
+  let sentBytes = 0;
 
-  for (let i = 0; i < data.length; i += chunkSize) {
-    const chunk = data.slice(i, Math.min(i + chunkSize, data.length));
-    await transport.send(chunk);
-    await transport.delay(20);
+  for (let row = 0; row < heightLines; row += bandLines) {
+    const rows = Math.min(bandLines, heightLines - row);
+    const bandStart = row * rowBytes;
+    const bandEnd = bandStart + rows * rowBytes;
 
-    if (onProgress) {
-      const progress = Math.round((i + chunk.length) / data.length * 100);
-      onProgress(progress);
+    await transport.send(CMD.RASTER_HEADER(widthBytes, rows));
+
+    for (let i = bandStart; i < bandEnd; i += chunkSize) {
+      const chunk = data.slice(i, Math.min(i + chunkSize, bandEnd));
+      await transport.send(chunk);
+      await transport.delay(20);
+
+      sentBytes += chunk.length;
+      if (onProgress) onProgress(Math.round(sentBytes / data.length * 100));
     }
+
+    if (gentle && row + rows < heightLines) await transport.delay(60);
   }
 
   // Feed after print
