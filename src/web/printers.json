@@ -311,7 +311,7 @@
       "id": "a42",
       "name": "A42",
       "group": "Other",
-      "description": "Generic 2-inch Print Master label printer (48mm). UNVERIFIED: 384px head @ 203 DPI assumed from 2-inch class; confirm with a full-width test print.",
+      "description": "Generic 2-inch Print Master label printer (48mm). Advertises a bare serial as its BLE name (Q593E64S9240005), so Q593E64 is matched as the model code. UNVERIFIED: 384px head @ 203 DPI assumed from 2-inch class; confirm with a full-width test print.",
       "protocol": "m-series",
       "widthBytes": 48,
       "dpi": 203,
@@ -320,7 +320,7 @@
       "tape": false,
       "tapeWidths": null,
       "defaultTapeWidth": null,
-      "namePatterns": ["A42"],
+      "namePatterns": ["A42", "Q593E64"],
       "labelPresets": "m-series",
       "builtin": true
     },

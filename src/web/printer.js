@@ -220,19 +220,23 @@ function _buildPatternList() {
 /**
  * Does an already-uppercased device `name` match `pattern`?
  *
- * Prefix match, EXCEPT that single-character catch-all patterns (the "D" that
- * backstops the D-series entry) additionally require the following character not
- * to be a letter. Without that rule any device whose name merely begins with the
- * letter is silently claimed by the catch-all: a DP27P was resolving to
- * D30/D35/Q30, i.e. a 96px rotated tape printer, so a 40x20mm label rotated to
- * 160px wide and tripped the head-width guard below (and, under the guard, would
- * have fed blank on D-series opcodes the printer does not speak).
+ * Multi-character patterns match ANYWHERE in the name, not just at the start:
+ * clones advertise the model buried in the name ("PRINTMASTER_A42", "PM-A42-1B2C"),
+ * and a prefix-only match left those unrecognized.
+ *
+ * Single-character catch-all patterns (the "D" that backstops the D-series entry)
+ * stay anchored to the start AND require the next character not to be a letter.
+ * Without that rule the catch-all silently claims any device beginning with the
+ * letter: a DP27P was resolving to D30/D35/Q30, i.e. a 96px rotated tape printer,
+ * so a 40x20mm label rotated to 160px wide and tripped the head-width guard below
+ * (and, under the guard, would have fed blank on D-series opcodes the printer does
+ * not speak).
  *
  * Digits still match, so "D30" / "D35" / "D50" auto-detect exactly as before.
  */
 function _matchesPattern(name, pattern) {
+  if (pattern.length > 1) return name.includes(pattern);
   if (!name.startsWith(pattern)) return false;
-  if (pattern.length > 1) return true;
   const next = name.charAt(pattern.length);
   return next === '' || !/[A-Z]/.test(next);
 }
