@@ -441,6 +441,15 @@ export class BLETransport {
   }
 
   /**
+   * True when writes are acknowledged by the printer (flow-controlled) rather
+   * than fire-and-forget. Decided at connect time from the characteristic's
+   * properties; surfaced for the debug log.
+   */
+  usesAcknowledgedWrites() {
+    return !!this._useWriteWithResponse;
+  }
+
+  /**
    * Wait for a response from the printer (BLE notification)
    * Used by P12 protocol to wait for status query responses
    * @param {number} timeout - Maximum time to wait in ms (default 500)

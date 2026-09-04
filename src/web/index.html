@@ -1840,10 +1840,36 @@
         </div>
       </div>
 
-      <div class="mt-3 pt-3 border-t border-gray-100">
+      <div class="mt-3 pt-3 border-t border-gray-100 space-y-1">
+        <button id="printer-info-debug" class="w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+          Debug Log
+        </button>
         <button id="printer-info-disconnect" class="w-full px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
           Disconnect
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Log Dialog -->
+  <div id="debug-log-dialog" class="neutral-backdrop hidden fixed inset-0 flex items-center justify-center z-[70] p-4">
+    <div class="neutral-dialog rounded-xl p-4 sm:p-5 w-full max-w-3xl max-h-full flex flex-col shadow-xl">
+      <div class="flex items-center justify-between mb-3 shrink-0">
+        <h3 class="text-lg font-semibold text-gray-900">Debug Log</h3>
+        <button id="debug-log-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <p class="text-xs text-gray-500 mb-2 shrink-0">
+        Every BLE write, printer reply and print step, with the gap in milliseconds since the previous line.
+        Copy this when reporting a printing problem.
+      </p>
+      <pre id="debug-log-text" class="flex-1 min-h-0 overflow-auto bg-gray-900 text-gray-100 text-[11px] leading-snug rounded-lg p-3 whitespace-pre font-mono">--</pre>
+      <div class="flex flex-wrap gap-2 mt-3 shrink-0">
+        <button id="debug-log-copy" class="px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">Copy</button>
+        <button id="debug-log-download" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">Download</button>
+        <button id="debug-log-refresh" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">Refresh</button>
+        <button id="debug-log-clear" class="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 ml-auto">Clear</button>
       </div>
     </div>
   </div>
@@ -2814,7 +2840,7 @@
     pdfjsModule.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
     window.pdfjsLib = pdfjsModule;
   </script>
-  <script type="module" src="app.js?v=171"></script>
+  <script type="module" src="app.js?v=172"></script>
   <script>
     // Show body once styles are ready
     requestAnimationFrame(() => {

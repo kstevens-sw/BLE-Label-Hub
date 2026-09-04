@@ -5,10 +5,11 @@
  */
 
 import { CanvasRenderer } from './canvas.js?v=116';
-import { BLETransport } from './ble.js?v=107';
+import { installDebugLog, getDebugLogText, clearDebugLog } from './debuglog.js?v=100';
+import { BLETransport } from './ble.js?v=108';
 import { NiimbotTransport } from './niimbot.js?v=2';
 import { USBTransport } from './usb.js?v=101';
-import { print, printDensityTest, printTSPLTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=140';
+import { print, printDensityTest, printTSPLTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=141';
 import {
   createTextElement,
   createImageElement,
@@ -5081,6 +5082,72 @@ async function handleConnect(event) {
 }
 
 /**
+ * Debug log viewer. The printer is driven from a phone as often as a desktop,
+ * where devtools is not reachable, so the trace has to be readable in the app
+ * and copyable in one tap.
+ */
+function openDebugLog() {
+  const dialog = $('#debug-log-dialog');
+  if (!dialog) return;
+  renderDebugLog();
+  dialog.classList.remove('hidden');
+}
+
+function renderDebugLog() {
+  const pre = $('#debug-log-text');
+  if (!pre) return;
+  pre.textContent = getDebugLogText();
+  // Newest lines are the interesting ones.
+  pre.scrollTop = pre.scrollHeight;
+}
+
+function initDebugLogDialog() {
+  const dialog = $('#debug-log-dialog');
+  if (!dialog) return;
+
+  const close = () => dialog.classList.add('hidden');
+  $('#debug-log-close')?.addEventListener('click', close);
+  dialog.addEventListener('click', e => { if (e.target === dialog) close(); });
+
+  $('#debug-log-refresh')?.addEventListener('click', renderDebugLog);
+
+  $('#debug-log-clear')?.addEventListener('click', () => {
+    clearDebugLog();
+    renderDebugLog();
+  });
+
+  $('#debug-log-copy')?.addEventListener('click', async () => {
+    const text = getDebugLogText();
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus('Debug log copied');
+    } catch (e) {
+      // Clipboard is blocked on insecure origins and in some mobile browsers;
+      // selecting the text is the fallback that always works.
+      const pre = $('#debug-log-text');
+      if (pre) {
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      setStatus('Copy blocked — log selected, copy manually');
+    }
+  });
+
+  $('#debug-log-download')?.addEventListener('click', () => {
+    const blob = new Blob([getDebugLogText()], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ble-label-hub-debug-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+/**
  * Tear down the active transport and reset the UI to disconnected.
  */
 async function handleDisconnect() {
@@ -7552,6 +7619,9 @@ function initPrinterDefsManager() {
  * Initialize the application
  */
 function init() {
+  // Before anything else, so the connect/print trace is captured from line one.
+  installDebugLog();
+
   if (!checkCompatibility()) {
     return;
   }
@@ -7730,6 +7800,11 @@ function init() {
         setStatus('Query failed');
       }
     }
+  });
+
+  $('#printer-info-debug')?.addEventListener('click', () => {
+    printerInfoPopup.classList.add('hidden');
+    openDebugLog();
   });
 
   $('#printer-info-disconnect').addEventListener('click', async () => {
@@ -8808,6 +8883,7 @@ function init() {
 
   // Initialize printer model prompt listeners
   initPrinterModelPrompt();
+  initDebugLogDialog();
 
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {

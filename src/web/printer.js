@@ -1026,25 +1026,44 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
   const chunkSize = 128;
   const rowBytes = widthBytes;
   let sentBytes = 0;
+  let slowestWriteMs = 0;
+
+  console.log(`Raster: ${data.length} bytes, ${widthBytes}B x ${heightLines} rows, ` +
+    `bands of ${bandLines} rows, ${chunkSize}B writes, ` +
+    `${transport.usesAcknowledgedWrites?.() ? 'acknowledged' : 'unacknowledged'} writes`);
 
   for (let row = 0; row < heightLines; row += bandLines) {
     const rows = Math.min(bandLines, heightLines - row);
     const bandStart = row * rowBytes;
     const bandEnd = bandStart + rows * rowBytes;
+    const bandStartedAt = performance.now();
 
     await transport.send(CMD.RASTER_HEADER(widthBytes, rows));
 
     for (let i = bandStart; i < bandEnd; i += chunkSize) {
       const chunk = data.slice(i, Math.min(i + chunkSize, bandEnd));
+      const writeStartedAt = performance.now();
       await transport.send(chunk);
+      const writeMs = performance.now() - writeStartedAt;
+      // A write that suddenly takes far longer than its neighbours is the link
+      // backing up — that is what a stall looks like from this side.
+      if (writeMs > slowestWriteMs) slowestWriteMs = writeMs;
+      if (writeMs > 250) console.warn(`Slow write at byte ${i}: ${Math.round(writeMs)}ms`);
       await transport.delay(20);
 
       sentBytes += chunk.length;
       if (onProgress) onProgress(Math.round(sentBytes / data.length * 100));
     }
 
+    const bandMs = Math.max(1, Math.round(performance.now() - bandStartedAt));
+    const bandBytes = bandEnd - bandStart;
+    console.log(`Band ${Math.floor(row / bandLines) + 1}: rows ${row}-${row + rows - 1}, ` +
+      `${bandBytes} bytes in ${bandMs}ms (${Math.round(bandBytes / bandMs * 1000 / 1024 * 10) / 10} KB/s)`);
+
     if (gentle && row + rows < heightLines) await transport.delay(60);
   }
+
+  console.log(`Sent ${sentBytes}/${data.length} bytes, slowest single write ${Math.round(slowestWriteMs)}ms`);
 
   // Feed after print
   await transport.delay(300);
