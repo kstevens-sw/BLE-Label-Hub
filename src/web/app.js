@@ -5109,6 +5109,18 @@ function initDebugLogDialog() {
   $('#debug-log-close')?.addEventListener('click', close);
   dialog.addEventListener('click', e => { if (e.target === dialog) close(); });
 
+  // The desktop toolbar's Printer Info button is display:none on phones and
+  // only rendered while connected, so the log needs entry points that do not
+  // depend on either.
+  $('#print-settings-debug-btn')?.addEventListener('click', () => {
+    $('#print-settings-dialog')?.classList.add('hidden');
+    openDebugLog();
+  });
+  $('#mobile-debug-log-btn')?.addEventListener('click', () => {
+    closeMobileMenu();
+    openDebugLog();
+  });
+
   $('#debug-log-refresh')?.addEventListener('click', renderDebugLog);
 
   $('#debug-log-clear')?.addEventListener('click', () => {

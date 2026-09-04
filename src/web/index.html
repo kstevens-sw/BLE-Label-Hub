@@ -1896,7 +1896,10 @@
           </select>
           <div class="flex items-center justify-between mt-1">
             <div class="text-xs text-gray-400">Override if auto-detect doesn't work</div>
-            <button id="manage-printers-btn" class="text-xs text-gray-700 hover:text-gray-900 hover:underline">Manage Printers</button>
+            <div class="flex items-center gap-3">
+              <button id="print-settings-debug-btn" class="text-xs text-gray-700 hover:text-gray-900 hover:underline">Debug Log</button>
+              <button id="manage-printers-btn" class="text-xs text-gray-700 hover:text-gray-900 hover:underline">Manage Printers</button>
+            </div>
           </div>
         </div>
 
@@ -2622,6 +2625,9 @@
               <option value="usb">USB</option>
             </select>
           </div>
+          <button id="mobile-debug-log-btn" class="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 active:bg-gray-100">
+            Debug Log
+          </button>
         </div>
 
         <!-- Templates -->
