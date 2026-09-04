@@ -1034,13 +1034,30 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
   // buffer overruns, and the tail of the image is dropped — the host reports
   // 100% sent and the paper stops part-way. If the printer turns out not to
   // answer, fall back to the fixed delay rather than stalling on every chunk.
-  const ACK_TIMEOUT_MS = 400;
-  const ACK_GIVE_UP_AFTER = 3;
+  // Short: a silent printer is usually just idle, and every wait is dead time.
+  const ACK_TIMEOUT_MS = 150;
+  // Allow this many writes outstanding before waiting for the printer to catch
+  // up. Waiting after EVERY write stalls whenever the printer answers per N
+  // bytes rather than per write; a window bounds how far ahead we can get
+  // (4 x 128B = 512B) without assuming acks are 1:1 with writes.
+  const MAX_UNACKED_WRITES = 4;
+  // A silent printer is ambiguous — caught up, or busy and about to drop data —
+  // so back off instead of guessing. Never speed up on silence: an earlier
+  // version fell back to fixed 20ms pacing, which outran the printer and lost
+  // the tail of the image, i.e. worse than not pacing at all.
+  const BACKOFF_START_MS = 20;
+  const BACKOFF_MAX_MS = 200;
   let ackPaced = gentle && typeof transport.waitForAck === 'function';
-  let ackMisses = 0;
+  let backoffMs = BACKOFF_START_MS;
+  let ackStreak = 0;
   let acked = 0;
   let timedOut = 0;
+  let unacked = 0;
   transport.resetAckCredits?.();
+  // Acknowledged writes where the printer offers them: the link layer then
+  // refuses data its buffer cannot take, which no application-level guess can
+  // replicate.
+  if (gentle) transport.setAcknowledgedWrites?.(true);
 
   console.log(`Raster: ${data.length} bytes, ${widthBytes}B x ${heightLines} rows, ` +
     `bands of ${bandLines} rows, ${chunkSize}B writes, ` +
@@ -1057,6 +1074,30 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
 
     for (let i = bandStart; i < bandEnd; i += chunkSize) {
       const chunk = data.slice(i, Math.min(i + chunkSize, bandEnd));
+
+      // Take anything the printer has already said, then block only if we are
+      // still too far ahead of it.
+      if (ackPaced) {
+        while (unacked > 0 && transport.tryTakeAck?.()) { unacked--; acked++; }
+        while (unacked >= MAX_UNACKED_WRITES) {
+          if (await transport.waitForAck(ACK_TIMEOUT_MS)) {
+            unacked--;
+            acked++;
+            // Recover quickly: the backoff exists for a printer falling behind,
+            // not as a permanent tax after one quiet moment.
+            if (++ackStreak >= 3) backoffMs = BACKOFF_START_MS;
+            else backoffMs = Math.max(BACKOFF_START_MS, Math.round(backoffMs / 2));
+          } else {
+            // Silence: assume it is idle, reopen the window, but slow down.
+            timedOut++;
+            ackStreak = 0;
+            unacked = 0;
+            backoffMs = Math.min(BACKOFF_MAX_MS, backoffMs * 2);
+            await transport.delay(backoffMs);
+          }
+        }
+      }
+
       const writeStartedAt = performance.now();
       await transport.send(chunk);
       const writeMs = performance.now() - writeStartedAt;
@@ -1066,16 +1107,9 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
       if (writeMs > 250) console.warn(`Slow write at byte ${i}: ${Math.round(writeMs)}ms`);
 
       if (ackPaced) {
-        if (await transport.waitForAck(ACK_TIMEOUT_MS)) {
-          acked++;
-          ackMisses = 0;
-        } else {
-          timedOut++;
-          if (++ackMisses >= ACK_GIVE_UP_AFTER) {
-            ackPaced = false;
-            console.warn(`No ack after ${ACK_GIVE_UP_AFTER} writes — falling back to timer pacing`);
-          }
-        }
+        // No per-write tax: the window plus the wait-branch backoff already
+        // bound how far ahead of the printer we can get.
+        unacked++;
       } else {
         await transport.delay(20);
       }
@@ -1093,7 +1127,7 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
   }
 
   console.log(`Sent ${sentBytes}/${data.length} bytes, slowest single write ${Math.round(slowestWriteMs)}ms` +
-    (acked || timedOut ? `, ${acked} acked / ${timedOut} timed out` : ''));
+    (acked || timedOut ? `, ${acked} acked / ${timedOut} waits timed out, backoff ${backoffMs}ms` : ''));
 
   // Feed after print
   await transport.delay(300);

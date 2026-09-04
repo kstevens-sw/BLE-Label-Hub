@@ -1,6 +1,6 @@
 // BLE Label Hub service worker — installable PWA + offline app shell.
 // ponytail: bump CACHE on release to evict the old shell; no fancy precache manifest needed.
-const CACHE = 'ble-label-hub-v11';
+const CACHE = 'ble-label-hub-v12';
 
 // App shell. JS modules are versioned via ?v= query strings in index.html, so the
 // network-first HTML fetch pulls fresh module URLs and the cache fills lazily on first load.

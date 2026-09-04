@@ -484,6 +484,24 @@ export class BLETransport {
     });
   }
 
+  /**
+   * Force acknowledged (writeValue) or fire-and-forget (writeValueWithoutResponse)
+   * writes. Acknowledged writes let the printer's own stack refuse data it has no
+   * room for; unacknowledged writes cannot be refused, only dropped.
+   */
+  setAcknowledgedWrites(on) {
+    this._useWriteWithResponse = !!on;
+  }
+
+  /** Take a banked ack if one is waiting, without blocking. */
+  tryTakeAck() {
+    if (this._ackCredits > 0) {
+      this._ackCredits--;
+      return true;
+    }
+    return false;
+  }
+
   /** Drop banked credits so a transfer starts from a known state. */
   resetAckCredits() {
     this._ackCredits = 0;
