@@ -1028,9 +1028,24 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
   let sentBytes = 0;
   let slowestWriteMs = 0;
 
+  // Flow control. Some of these printers answer every so often during a raster
+  // transfer; that answer means "consumed, keep going". Pacing on a fixed timer
+  // instead means we keep writing after the printer has stopped consuming, its
+  // buffer overruns, and the tail of the image is dropped — the host reports
+  // 100% sent and the paper stops part-way. If the printer turns out not to
+  // answer, fall back to the fixed delay rather than stalling on every chunk.
+  const ACK_TIMEOUT_MS = 400;
+  const ACK_GIVE_UP_AFTER = 3;
+  let ackPaced = gentle && typeof transport.waitForAck === 'function';
+  let ackMisses = 0;
+  let acked = 0;
+  let timedOut = 0;
+  transport.resetAckCredits?.();
+
   console.log(`Raster: ${data.length} bytes, ${widthBytes}B x ${heightLines} rows, ` +
     `bands of ${bandLines} rows, ${chunkSize}B writes, ` +
-    `${transport.usesAcknowledgedWrites?.() ? 'acknowledged' : 'unacknowledged'} writes`);
+    `${transport.usesAcknowledgedWrites?.() ? 'acknowledged' : 'unacknowledged'} writes, ` +
+    `${ackPaced ? `ack-paced (${ACK_TIMEOUT_MS}ms timeout)` : 'timer-paced'}`);
 
   for (let row = 0; row < heightLines; row += bandLines) {
     const rows = Math.min(bandLines, heightLines - row);
@@ -1049,7 +1064,21 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
       // backing up — that is what a stall looks like from this side.
       if (writeMs > slowestWriteMs) slowestWriteMs = writeMs;
       if (writeMs > 250) console.warn(`Slow write at byte ${i}: ${Math.round(writeMs)}ms`);
-      await transport.delay(20);
+
+      if (ackPaced) {
+        if (await transport.waitForAck(ACK_TIMEOUT_MS)) {
+          acked++;
+          ackMisses = 0;
+        } else {
+          timedOut++;
+          if (++ackMisses >= ACK_GIVE_UP_AFTER) {
+            ackPaced = false;
+            console.warn(`No ack after ${ACK_GIVE_UP_AFTER} writes — falling back to timer pacing`);
+          }
+        }
+      } else {
+        await transport.delay(20);
+      }
 
       sentBytes += chunk.length;
       if (onProgress) onProgress(Math.round(sentBytes / data.length * 100));
@@ -1063,7 +1092,8 @@ async function printBLE(transport, data, widthBytes, heightLines, density, feed,
     if (gentle && row + rows < heightLines) await transport.delay(60);
   }
 
-  console.log(`Sent ${sentBytes}/${data.length} bytes, slowest single write ${Math.round(slowestWriteMs)}ms`);
+  console.log(`Sent ${sentBytes}/${data.length} bytes, slowest single write ${Math.round(slowestWriteMs)}ms` +
+    (acked || timedOut ? `, ${acked} acked / ${timedOut} timed out` : ''));
 
   // Feed after print
   await transport.delay(300);

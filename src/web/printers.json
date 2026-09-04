@@ -364,7 +364,7 @@
       "id": "generic-58mm",
       "name": "Generic 58mm (ESC/POS)",
       "group": "Generic",
-      "description": "Unlisted 58mm pocket/receipt printer (C2 and similar). 384px printable @ 203 DPI on 57-58mm paper, plain ESC/POS raster. Start here when the model is not listed.",
+      "description": "Unlisted 58mm pocket/receipt printer. 384px printable @ 203 DPI on 57-58mm paper, plain ESC/POS raster. Auto-detects the PPC2 pocket printer; start here when a model is not listed.",
       "protocol": "m-series",
       "widthBytes": 48,
       "dpi": 203,
@@ -373,7 +373,7 @@
       "tape": false,
       "tapeWidths": null,
       "defaultTapeWidth": null,
-      "namePatterns": [],
+      "namePatterns": ["PPC2"],
       "labelPresets": "m-series",
       "escposGentle": true,
       "builtin": true

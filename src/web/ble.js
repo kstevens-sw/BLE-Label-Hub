@@ -36,6 +36,8 @@ export class BLETransport {
     this.onDisconnect = null;
     this.onPrinterInfo = null; // Callback for printer info updates
     this._useWriteWithResponse = false; // Some devices need writeValue instead of writeValueWithoutResponse
+    this._ackCredits = 0;               // notifications seen but not yet consumed as flow control
+    this._ackWaiters = [];
     this.printerInfo = {
       battery: null,
       paper: null,
@@ -450,6 +452,41 @@ export class BLETransport {
   }
 
   /**
+   * Wait for the printer to say anything, as flow control during a transfer.
+   *
+   * Unlike waitForResponse() this cannot miss a frame that lands between the
+   * write resolving and the wait starting: notifications bank a credit, and
+   * this consumes one if it is already there. That race matters here because
+   * the ack often beats us back.
+   *
+   * @param {number} timeout
+   * @returns {Promise<boolean>} true if the printer answered, false on timeout
+   */
+  async waitForAck(timeout = 150) {
+    if (this._ackCredits > 0) {
+      this._ackCredits--;
+      return true;
+    }
+    return new Promise((resolve) => {
+      const wake = () => {
+        clearTimeout(timer);
+        if (this._ackCredits > 0) this._ackCredits--;
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        this._ackWaiters = this._ackWaiters.filter(w => w !== wake);
+        resolve(false);
+      }, timeout);
+      this._ackWaiters.push(wake);
+    });
+  }
+
+  /** Drop banked credits so a transfer starts from a known state. */
+  resetAckCredits() {
+    this._ackCredits = 0;
+  }
+
+  /**
    * Wait for a response from the printer (BLE notification)
    * Used by P12 protocol to wait for status query responses
    * @param {number} timeout - Maximum time to wait in ms (default 500)
@@ -555,6 +592,14 @@ export class BLETransport {
   handleNotification(event) {
     const data = new Uint8Array(event.target.value.buffer);
     console.log('[BLE <<<]', Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' '));
+
+    // Any frame from the printer doubles as flow control: printers that answer
+    // during a raster transfer are telling us they consumed what we sent. See
+    // waitForAck().
+    this._ackCredits++;
+    const waiters = this._ackWaiters;
+    this._ackWaiters = [];
+    for (const wake of waiters) wake();
 
     if (data.length < 2) return;
 
