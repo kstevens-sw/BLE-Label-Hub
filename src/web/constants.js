@@ -108,6 +108,13 @@ export const BLE = {
   CHUNK_DELAY_MS: 20,
   MAX_RETRIES: 1,
   INITIAL_RETRY_DELAY_MS: 300,
+  // Reconnecting to a printer we already know is worth more patience than the
+  // first connect: pocket printers drop the link after a job and take a few
+  // seconds to bring the radio back. One 300ms retry always misses that window,
+  // and the failure path throws the device away and reopens the picker.
+  // 4 tries at 500ms doubling covers ~7s.
+  RECONNECT_RETRIES: 4,
+  RECONNECT_RETRY_DELAY_MS: 500,
 };
 
 export const STORAGE_KEYS = {

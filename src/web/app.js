@@ -6,7 +6,7 @@
 
 import { CanvasRenderer } from './canvas.js?v=116';
 import { installDebugLog, getDebugLogText, clearDebugLog } from './debuglog.js?v=100';
-import { BLETransport } from './ble.js?v=109';
+import { BLETransport } from './ble.js?v=111';
 import { NiimbotTransport } from './niimbot.js?v=2';
 import { USBTransport } from './usb.js?v=101';
 import { print, printDensityTest, printTSPLTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, getPrinterProtocol, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=142';
@@ -87,7 +87,7 @@ import {
   D_SERIES_ROUND_LABELS,
   TAPE_LABEL_SIZES,
   PM241_LABEL_SIZES,
-} from './constants.js?v=107';
+} from './constants.js?v=108';
 import { applyTheme, loadSavedTheme } from './themes.js?v=1';
 import {
   bindCheckbox,
@@ -5123,6 +5123,20 @@ function initDebugLogDialog() {
 
   $('#debug-log-refresh')?.addEventListener('click', renderDebugLog);
 
+  $('#debug-log-update')?.addEventListener('click', async () => {
+    // Unregister the service worker and drop every cache, then reload from the
+    // network. The blunt instrument for when a client is stuck on an old build.
+    try {
+      const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+      await Promise.all(regs.map(r => r.unregister()));
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    } catch (e) {
+      console.warn('Cache clear failed:', e.message);
+    }
+    location.reload();
+  });
+
   $('#debug-log-clear')?.addEventListener('click', () => {
     clearDebugLog();
     renderDebugLog();
@@ -7633,6 +7647,11 @@ function initPrinterDefsManager() {
 function init() {
   // Before anything else, so the connect/print trace is captured from line one.
   installDebugLog();
+
+  // Which build is actually running. Two debugging rounds were spent on logs
+  // from a stale cached build; the entry point's ?v= says outright.
+  const appSrc = document.querySelector('script[src*="app.js"]')?.getAttribute('src') || 'unknown';
+  console.log(`Build: ${appSrc}`);
 
   if (!checkCompatibility()) {
     return;

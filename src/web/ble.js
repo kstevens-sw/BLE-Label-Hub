@@ -8,7 +8,7 @@
  * - Handles timing issues common with BLE GATT connections
  */
 
-import { BLE } from './constants.js';
+import { BLE } from './constants.js?v=108';
 
 const QUERY_COMMANDS = {
   battery: [0x1F, 0x11, 0x08],
@@ -84,13 +84,16 @@ export class BLETransport {
         console.log('Reconnecting to', this.device.name);
         await this.retryWithBackoff(
           () => this.connectGATT(),
-          BLE.MAX_RETRIES,
-          BLE.INITIAL_RETRY_DELAY_MS
+          BLE.RECONNECT_RETRIES,
+          BLE.RECONNECT_RETRY_DELAY_MS,
+          (attempt, error) => console.log(`Reconnect attempt ${attempt}: ${error.message}`)
         );
         return true;
       } catch (e) {
+        // Keep the device. A printer that is merely asleep will answer the next
+        // attempt without dragging the user back through the picker; if it has
+        // really gone, the picker below replaces it anyway.
         console.log('Reconnect failed after retries:', e.message);
-        this.device = null;
       }
     }
 
